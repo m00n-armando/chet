@@ -226,7 +226,7 @@ const CHARACTER_PROFILE_SCHEMA = {
         eyeColor: { type: Type.STRING },
         skinTone: { type: Type.STRING },
         breastAndCleavage: { type: Type.STRING, description: "A concise description of breast size (e.g., A-cup, B-cup) and typical cleavage style. Keep it brief and specific, like 'A natural, modest A-cup, rarely accentuated.'" },
-        clothingStyle: { type: Type.STRING, description: "Influenced by their profession and aura." },
+        clothingStyle: { type: Type.STRING, description: "Modern, real-world clothing style influenced by their profession and aura. Use contemporary fashion terms and avoid fantasy or historical elements." },
         accessories: { type: Type.STRING },
         makeupStyle: { type: Type.STRING },
         overallVibe: { type: Type.STRING },
@@ -740,6 +740,7 @@ async function generateCharacterProfile(name: string, age: number, ethnicity: st
   - The cityOfResidence should align with the character's ethnicity/descent. For example, Chinese ethnicity should have a city in China or a Chinese-majority area.
 - **Conciseness for Physical Attributes:**
   - Keep physical descriptions (bodyType, hairColor, hairStyle, eyeColor, skinTone, breastAndCleavage, clothingStyle, accessories, makeupStyle, overallVibe) brief and specific. Avoid verbose explanations.
+- **Clothing Style:** Ensure clothingStyle describes modern, contemporary fashion appropriate for today's world. Use real-world clothing terms like jeans, t-shirts, dresses, suits, etc. Avoid fantasy, historical, or supernatural clothing elements.
 - **Language:** Fill ALL field values in English.
 - **Format:** Respond ONLY with the raw JSON object that conforms to the schema.
 
@@ -2073,6 +2074,7 @@ async function generateOutfitDescription(character: Character, location: string,
 2.  Based on the context, describe a fitting outfit. Be specific and visual.
 3.  Do NOT mention the character's general style in the output.
 4.  The output must be a short phrase, NOT a full sentence.
+5.  Ensure the outfit is modern and contemporary, using current fashion trends and real-world clothing items.
 
 **Outfit Description:**`;
 
