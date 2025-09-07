@@ -923,15 +923,11 @@ function renderUserProfile() {
     if (userProfile) {
         settingsUserProfileDisplay.textContent = `Logged in as: ${userProfile.name}`;
         headerUserProfileDisplay.textContent = `Logged in as: ${userProfile.name}`;
-        // Always close the user profile modal when profile exists
-        modals.userProfile.style.display = 'none';
-        console.log("User profile modal closed - profile exists");
+        console.log("User profile exists - updating display");
     } else {
         settingsUserProfileDisplay.textContent = 'Not logged in';
         headerUserProfileDisplay.textContent = 'Not logged in';
-        // Only show modal if no profile exists
-        modals.userProfile.style.display = 'flex';
-        console.log("User profile modal opened - no profile exists");
+        console.log("No user profile exists");
     }
 }
 
@@ -1338,6 +1334,9 @@ async function handleUserProfileSubmit(e: Event) {
         }
         await saveAppState({ userProfile, characters });
         renderUserProfile();
+
+        // Close the modal after successful save
+        modals.userProfile.style.display = 'none';
 
         // Clear the form input after successful save
         nameInput.value = '';
@@ -3628,6 +3627,11 @@ async function init() {
     renderUserProfile();
     renderContacts();
     showScreen('home');
+    
+    // Show user profile modal if no profile exists
+    if (!userProfile) {
+        modals.userProfile.style.display = 'flex';
+    }
 
     // Show changelog if version updated
     const lastVersion = localStorage.getItem('chet_last_version');
