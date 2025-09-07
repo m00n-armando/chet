@@ -37,9 +37,9 @@ self.addEventListener('fetch', event => {
               return response;
             }
 
-            // Cache assets (CSS, JS files) dynamically
+            // Cache assets (CSS, JS files) dynamically, but only for same-origin requests
             const url = new URL(event.request.url);
-            if (url.pathname.match(/\.(css|js)$/)) {
+            if (url.origin === location.origin && url.pathname.match(/\.(css|js)$/)) {
               // IMPORTANT: Clone the response. A response is a stream
               // and because we want the browser to consume the response
               // as well as the cache consuming the response, we need
