@@ -360,7 +360,7 @@
                     </div>
                 </div>
                <label for="chat-input" class="sr-only">Type your message</label>
-               <input type="text" id="chat-input" placeholder="Type a message..." autocomplete="off" />
+               <textarea id="chat-input" placeholder="Type a message..." autocomplete="off" rows="1"></textarea>
                <button type="submit" id="chat-submit-btn" aria-label="Send message">
                </button>
              </form>
@@ -481,6 +481,18 @@
                 <h4>Prompt Details</h4>
                 <p id="viewer-img-prompt"></p>
                 <div class="viewer-actions">
+                  <button id="fullscreen-image-btn" class="submit-btn">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20px"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"></path></svg>
+                      Full Screen
+                  </button>
+                  <button id="copy-image-btn" class="submit-btn">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20px"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"></path></svg>
+                      Copy Image
+                  </button>
+                  <button id="download-image-btn" class="submit-btn">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20px"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"></path></svg>
+                      Download
+                  </button>
                   <button id="edit-image-btn" class="submit-btn">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20px"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"></path></svg>
                       Edit Image

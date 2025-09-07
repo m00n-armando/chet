@@ -176,7 +176,7 @@ const safetySettingsMap: Record<SafetyLevel, any[]> = {
 
 const generationConfig = {
     temperature: 2.0,
-    safetySettings: safetySettingsMap.standard,
+    safetySettings: safetySettingsMap.flexible,
 };
 
 const ROLE_TO_INTIMACY_MAP: Record<string, number> = {
@@ -226,7 +226,7 @@ const CHARACTER_PROFILE_SCHEMA = {
         eyeColor: { type: Type.STRING },
         skinTone: { type: Type.STRING },
         breastAndCleavage: { type: Type.STRING, description: "A concise description of breast size (e.g., A-cup, B-cup) and typical cleavage style. Keep it brief and specific, like 'A natural, modest A-cup, rarely accentuated.'" },
-        clothingStyle: { type: Type.STRING, description: "Modern, real-world clothing style influenced by their profession and aura. Use contemporary fashion terms and avoid fantasy or historical elements." },
+        clothingStyle: { type: Type.STRING, description: "Modern, real-world clothing style influenced by their profession and aura. Use contemporary fashion terms and avoid fantasy or historical elements. If Female, mostly will wearing deep low-u, low-v, or low-square neckline which revealing her bust and cleavage." },
         accessories: { type: Type.STRING },
         makeupStyle: { type: Type.STRING },
         overallVibe: { type: Type.STRING },
@@ -241,7 +241,7 @@ const CHARACTER_PROFILE_SCHEMA = {
         backgroundStory: { type: Type.STRING, description: "A brief, compelling backstory." },
         fatalFlaw: { type: Type.STRING, description: "A significant character flaw derived from their backstory." },
         secretDesire: { type: Type.STRING, description: "A hidden desire, also linked to their backstory." },
-        profession: { type: Type.STRING },
+        profession: { type: Type.STRING, description: "A realistic profession that fits their." },
         hobbies: { type: Type.STRING, description: "Hobbies that are related to their profession." },
         triggerWords: { type: Type.STRING, description: "A few trigger words or situations and their specific reactions." },
       },
@@ -330,7 +330,7 @@ const chatScreenElements = {
     name: document.getElementById('chat-character-name')!,
     messages: document.getElementById('chat-messages')!,
     form: document.getElementById('chat-form')! as HTMLFormElement,
-    input: document.getElementById('chat-input')! as HTMLInputElement,
+    input: document.getElementById('chat-input')! as HTMLTextAreaElement,
     submitBtn: document.getElementById('chat-submit-btn')! as HTMLButtonElement,
     actionMenu: document.querySelector('.chat-action-menu')!,
     intimacyMeter: document.getElementById('intimacy-meter')!,
@@ -419,6 +419,9 @@ const viewerImgPrompt = document.getElementById('viewer-img-prompt')! as HTMLPar
 const viewerVideoPrompt = document.getElementById('viewer-video-prompt')! as HTMLParagraphElement;
 const editImageBtn = document.getElementById('edit-image-btn')!;
 const deleteImageBtn = document.getElementById('delete-image-btn')!;
+const fullscreenImageBtn = document.getElementById('fullscreen-image-btn')! as HTMLButtonElement;
+const copyImageBtn = document.getElementById('copy-image-btn')! as HTMLButtonElement;
+const downloadImageBtn = document.getElementById('download-image-btn')! as HTMLButtonElement;
 const apiKeyForm = document.getElementById('api-key-form')! as HTMLFormElement;
 const apiKeyInput = document.getElementById('api-key-input')! as HTMLInputElement;
 const apiKeyDisplay = document.getElementById('api-key-display')!;
@@ -659,7 +662,7 @@ async function getIANATimezone(location: string): Promise<string | null> {
     if (!ai) { modals.apiKey.style.display = 'flex'; return null; }
     const prompt = `What is the primary IANA timezone identifier for the following location? 
 Location: "${location}"
-Return only the IANA timezone identifier (e.g., "Indonesia/Jakarta", "Asia/Tokyo", "Europe/London"). If the location is ambiguous or a large country, provide the capital city's timezone. Do not provide any other text or explanation.`;
+Return only the IANA timezone identifier (e.g., "Indonesia/Jakarta", "Asia/Tokyo", "Europe/London"). If the location is ambiguous or a large country, provide the capital city's timezone or nearest timezone. Do not provide any other text or explanation.`;
 
     try {
         const response = await ai.models.generateContent({
@@ -726,12 +729,12 @@ function parseMarkdown(text: string): string {
 async function generateCharacterProfile(name: string, age: number, ethnicity: string, gender: string, race: string, aura: string, role: string): Promise<CharacterProfile> {
   if (!ai) { throw new Error("AI not initialized"); }
 
-  const prompt = `You are an expert character designer for a personal, evolving visual novel chat experience set in a parallel fantasy world where supernatural races exist alongside humans. Based on the initial user input, fill out the provided JSON schema with creative, diverse, and high-quality content in ENGLISH.
+  const prompt = `You are an world class character designer for a personal, evolving visual novel chat experience set in a parallel real world where supernatural races exist alongside humans. Based on the initial user input, fill out the provided JSON schema with creative, diverse, and high-quality content in ENGLISH.
 
 **CRITICAL INSTRUCTIONS:**
 - **Creativity & Diversity:**
   - **Avoid Tropes:** Steer clear of common archetypes. Surprise the user with unique and unexpected combinations of traits.
-  - **Diverse Professions:** Explore a wide range of professions appropriate to the character's race and setting. The profession should feel grounded and plausible within their world.
+  - **Diverse Professions:** Explore a wide range of professions appropriate to the character's race and setting. The profession should feel grounded and plausible within their world so they can blend in human world.
 - **Interconnectivity:**
   - The character's 'race' (${race}), 'aura' (${aura}), 'zodiac sign', and 'role' (${role}) must deeply influence their 'personalityTraits', 'communicationStyle', 'clothingStyle', and 'overallVibe'. Create a cohesive personality.
   - "profession" MUST heavily influence their "clothingStyle" and "hobbies".
@@ -855,7 +858,7 @@ ${profileString}
  - *Italic text* for internal monologue/thoughts
  - "Quoted text" for spoken dialogue
  - (Parentheses) for physical actions or descriptions
-- **Language:** Speak primarily in Indonesian, but feel free to mix in English or local slang naturally. The level of intimacy dictates your word choice (e.g., "Anda" -> "kamu" -> "sayang").
+- **Language:** Speak primarily in Indonesian, but feel free to mix in English or local slang naturally. The level of intimacy dictates your word choice (e.g., "Anda" -> "kamu" -> "sayang", "ayaang", "honey", or "beb").
 - **Concise & Realistic Pacing:** Your replies MUST be short. For normal chat, keep replies to 10-15 words. Only use longer replies (20-30 words) for highly emotional moments.
 - **Markdown:** Use simple markdown for emphasis: **bold**, *italic*, or ~~strikethrough~~.
 
@@ -1449,10 +1452,10 @@ async function constructAvatarPrompt(characterProfile: CharacterProfile): Promis
     }
 
     const prompt = `
-    An ultra-realistic, professional promotional solo portrait of a ${age}-year-old ${raceOrDescent} ${genderNoun}, ${genderPronoun === 'him' ? 'his' : 'her'} race / ${genderPronoun === 'him' ? 'he' : 'she'} is ${basicInfo.race}, looking directly at the camera with an expression that matches ${genderPronoun === 'him' ? 'his' : 'her'} '${basicInfo.aura}' aura. Shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.
-${genderPronoun === 'him' ? 'His' : 'Her'} skin is ${physicalStyle.skinTone} with realistic texture. ${genderPronoun === 'him' ? 'His' : 'Her'} ${hair} is styled professionally. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are ${eyes}. ${genderPronoun === 'him' ? 'He' : 'She'} wears fashionable jewelry including prominent necklace, accentuating ${genderPronoun === 'him' ? 'his' : 'her'} chic style.
-${genderPronoun === 'him' ? 'His' : 'Her'} makeup is ${makeup} style. ${genderPronoun === 'him' ? 'He' : 'She'} wears ${clothing}, ensuring a clear view of ${genderPronoun === 'him' ? 'his' : 'her'} neck and shoulders.
-Half-body composition from hips up, emphasizing ${genderPronoun === 'him' ? 'his' : 'her'} charismatic expression and confident pose, facing forward. The overall tone is cinematic and high-fashion. Studio lighting with softboxes creates perfect illumination.
+    An ultra-realistic, professional portrait of a ${age}-year-old ${raceOrDescent} ${genderNoun}, ${genderPronoun === 'him' ? 'his' : 'her'} race / ${genderPronoun === 'him' ? 'he' : 'she'} is ${basicInfo.race}, looking directly at the camera with an expression that matches ${genderPronoun === 'him' ? 'his' : 'her'} '${basicInfo.aura}' aura. Shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.
+${genderPronoun === 'him' ? 'His' : 'Her'} skin is ${physicalStyle.skinTone} with realistic texture. ${genderPronoun === 'him' ? 'His' : 'Her'} ${hair} is styled professionally. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are ${eyes}. 
+${genderPronoun === 'him' ? 'His' : 'Her'} makeup is ${makeup} style. ${genderPronoun === 'him' ? 'He' : 'She'} wears ${clothing}, ensuring a clear view of ${genderPronoun === 'him' ? 'his' : 'her'} neck and shoulders. ${genderPronoun === 'him' ? 'He' : 'She'} wears fashionable jewelry including prominent necklace, accentuating ${genderPronoun === 'him' ? 'his' : 'her'} chic style.
+Half-body composition from hips up, emphasizing ${genderPronoun === 'him' ? 'his' : 'her'} ${basicInfo.aura} expression and pose, facing forward. The overall tone is cinematic and high-fashion. Studio lighting with softboxes creates perfect illumination.
 9:16 aspect ratio. The image exhibits exceptional professional photography quality - tack-sharp focus on the eyes, creamy bokeh background, and perfect exposure balance. No digital art, no 3D rendering, pure photographic excellence.
 `.trim().replace(/\n/g, ' ').replace(/\s\s+/g, ' ');
 
@@ -1577,7 +1580,7 @@ async function handleSaveCharacter() {
 async function updateIntimacyLevel(character: Character, userMessage: string, aiResponse: string) {
     if (!ai) return;
 
-    const prompt = `You are a relationship psychologist analyzing a conversation. Based on the character's profile, the last user message, and the character's reply, determine how the intimacy level should change.
+    const prompt = `You are a world class relationship psychologist analyzing a conversation. Based on the character's profile, the last user message, and the character's reply, determine how the intimacy level should change.
 
 **Character Profile Snippet:**
 - Personality: ${character.characterProfile.personalityContext.personalityTraits}
@@ -1594,6 +1597,8 @@ Analyze the user's message.
 - Did the user say something rude, demanding, or something that hits one of the character's triggers? (Decrease intimacy).
 - Was the message neutral? (Small or no change).
 - A large change (+/- 5 or more) should be reserved for very significant moments. A normal positive interaction is +1 or +2.
+- A negative interaction is typically -1 to -3, unless very severe.
+- the intimacy level based on character's personality, triggers, and secret desire.
 
 Respond ONLY with a JSON object conforming to the schema.`;
 
@@ -2001,7 +2006,7 @@ async function refinePromptWithAI(originalPrompt: string): Promise<string> {
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: `You are an expert prompt engineer. Refine the following image generation prompt to make it more detailed, descriptive, and effective for AI image generation. Keep the core concept but enhance it with better visual details, composition suggestions, and technical specifications. Return ONLY the refined prompt text.
+            contents: `You are a world class prompt engineer. Refine the following image generation prompt to make it more detailed, descriptive, and effective for AI image generation. Keep the core concept but enhance it with better visual details, composition suggestions, and technical specifications. Return ONLY the refined prompt text.
 
 Original Prompt: "${originalPrompt}"
 
@@ -2018,7 +2023,7 @@ Refined Prompt:`,
 async function generateSceneDescription(character: Character, userPrompt: string, lastMessageContent: string): Promise<string> {
     if (!ai) { throw new Error("AI not initialized"); }
     const promptForDirector = `
-You are a visual scene director. Your task is to generate a short, dynamic description of a character's action for an image prompt.
+You are a world class visual scene director. Your task is to generate a short, dynamic description of a character's action for an image prompt.
 The final image prompt will already include the character's core appearance (hair, ethnicity), their current outfit, and their general location.
 Your description MUST NOT repeat these details.
 
@@ -2060,7 +2065,7 @@ async function generateOutfitDescription(character: Character, location: string,
     const lastMessage = character.chatHistory.filter(m => m.sender === 'ai' && m.type === 'text').pop()?.content || '';
     const { timeDescription } = getContextualTime(new Date().toISOString(), character.timezone);
 
-    const prompt = `You are a fashion stylist and scene describer for an AI character. Your task is to describe a contextually appropriate outfit. The description must be concise and suitable for an image generation prompt.
+    const prompt = `You are a world class fashion stylist and scene describer for an AI character. Your task is to describe a contextually appropriate outfit. The description must be concise and suitable for an image generation prompt.
 
 **Context:**
 - **Character's General Style:** ${generalStyle}
@@ -2161,7 +2166,7 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
     const genderNoun = character.characterProfile.basicInfo.gender === 'male' ? 'man' : 'woman';
 
     const prompt = `
-A hyper-realistic documentary photograph, shot on an iPhone 16 Pro Max, 26mm wide-angle lens, cinematic 9:16 aspect ratio. A ${age}-year-old ${genderNoun} of ${raceOrDescent} descent${raceVisualDescription}, captured in a selfie moment. ${GeneralAppearance}. ${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ${genderPronoun === 'him' ? 'His' : 'Her'} skin shows realistic texture and subtle pores, ${skinDescription}. ${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}. The scene is set in ${sessionLocation} during ${timeDescription}. ${sceneDescription}. The image exhibits the natural grain, dynamic range, and slight lens distortion of a genuine smartphone photo, with absolutely no sign of digital rendering, 3D assets, or artificial art styles. 8K resolution, extreme detail, photorealistic. -- no phone visible in the frame.
+A ultra-realistic photograph, shot on an iPhone 16 Pro Max, 26mm wide-angle lens, cinematic 9:16 aspect ratio. A ${age}-year-old ${genderNoun} of ${raceOrDescent} descent${raceVisualDescription}, captured in a selfie moment. ${GeneralAppearance}. ${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ${genderPronoun === 'him' ? 'His' : 'Her'} skin shows realistic texture and subtle pores, ${skinDescription}. ${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}. The scene is set in ${sessionLocation} during ${timeDescription}. ${sceneDescription}. ${genderPronoun === 'him' ? 'His' : 'Her'} expression is as the naration. The image exhibits the natural grain, dynamic range, and slight lens distortion of a genuine smartphone photo, with absolutely no sign of digital rendering, 3D assets, or artificial art styles. 8K resolution, extreme detail, photorealistic. -- no phone visible in the frame.
 `.trim().replace(/\n/g, ' ').replace(/\s\s+/g, ' ');
 
     return prompt;
@@ -2170,7 +2175,7 @@ A hyper-realistic documentary photograph, shot on an iPhone 16 Pro Max, 26mm wid
 
 async function generateDialogueForVideo(character: Character, action: string): Promise<string> {
     if (!ai) { throw new Error("AI not initialized"); }
-    const prompt = `You are roleplaying as a character. Based on her personality and the current situation, write a single, short line of dialogue (5-7 words maximum) in INDONESIAN that she would say. Do not add quotation marks or any other text.
+    const prompt = `You are roleplaying as a character. Based on his/her personality and the current situation, write a single, short line of dialogue (5-7 words maximum) in INDONESIAN that he/she would say. Do not add quotation marks or any other text.
 
     Character Persona: ${character.characterProfile.personalityContext.personalityTraits}
     Situation: She is about to record a short video where she is ${action}.
@@ -2246,7 +2251,7 @@ async function constructVideoPrompt(character: Character, userPrompt: string): P
     const genderNoun = character.characterProfile.basicInfo.gender === 'male' ? 'man' : 'woman';
 
     // Construct the final, more detailed prompt
-    return `A hyper-realistic, documentary-style cinematic video clip, Shot on an iPhone 16 Pro Max in 9:16 aspect ratio. The subject is a ${age}-year-old ${genderNoun} of ${raceOrdescent} descent${raceVisualDescription}. ${genderPronoun === 'him' ? 'His' : 'Her'} visual characteristics are: ${visualDNA}. ${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}. The setting is ${sessionLocation}. The action is: ${userPrompt}. ${dialoguePromptPart} The video has the intimate feel of a selfie video, with natural movement, realistic motion blur, and the subtle grain of real digital footage. No visual effects, CGI, or artificial animation. -- no phone visible in the frame.`.trim().replace(/\s\s+/g, ' ');
+    return `A ultra-realistic, documentary-style cinematic video clip, Shot on an iPhone 16 Pro Max in 9:16 aspect ratio. The subject is a ${age}-year-old ${genderNoun} of ${raceOrdescent} descent${raceVisualDescription}. ${genderPronoun === 'him' ? 'His' : 'Her'} visual characteristics are: ${visualDNA}. ${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}. The setting is ${sessionLocation}. The action is: ${userPrompt}. ${dialoguePromptPart} The video has the intimate feel of a selfie video, with natural movement, realistic motion blur, and the subtle grain of real digital footage. No visual effects, CGI, or artificial animation. -- no phone visible in the frame.`.trim().replace(/\s\s+/g, ' ');
 }
 
 
@@ -2555,7 +2560,7 @@ async function handleAiRefineRetryPrompt() {
             unrestricted: "Rewrite the prompt to be more direct and descriptive to achieve the user's likely original intent, while rephrasing it to potentially bypass automated safety filters. Use artistic and technical terms if it helps. This is the most permissive level."
         };
 
-        const promptForRefinement = `You are an expert prompt engineer. Your task is to refine a failed image generation prompt to increase its chance of success, based on a desired safety level. The user's original prompt was likely blocked by safety filters.
+        const promptForRefinement = `You are an world class prompt engineer. Your task is to refine a failed image generation prompt to increase its chance of success, based on a desired safety level. The user's original prompt was likely blocked by safety filters.
 
 **Instructions:**
 1. Analyze the user's original prompt.
@@ -2622,7 +2627,7 @@ async function handleGenerateVideoRequest(prompt: string) {
         }
 
         let operation = await ai.models.generateVideos({
-            model: 'veo-2.0-generate-001',
+            model: 'veo-3.0-generate-preview',
             prompt: finalEnglishPrompt,
             image: imageReference,
             config: { 
@@ -2725,6 +2730,37 @@ function openImageViewer(options: { mediaId?: string; imageDataUrl?: string; pro
 function closeImageViewer() {
     modals.imageViewer.style.display = 'none';
     delete modals.imageViewer.dataset.currentMediaId;
+}
+
+function fullscreenImage() {
+    if (viewerImg.requestFullscreen) {
+        viewerImg.requestFullscreen();
+    } else if ((viewerImg as any).webkitRequestFullscreen) {
+        (viewerImg as any).webkitRequestFullscreen();
+    } else if ((viewerImg as any).mozRequestFullScreen) {
+        (viewerImg as any).mozRequestFullScreen();
+    } else if ((viewerImg as any).msRequestFullscreen) {
+        (viewerImg as any).msRequestFullscreen();
+    }
+}
+
+async function copyImage() {
+    try {
+        const response = await fetch(viewerImg.src);
+        const blob = await response.blob();
+        await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+        alert('Image copied to clipboard!');
+    } catch (error) {
+        console.error('Failed to copy image:', error);
+        alert('Failed to copy image. Please try again.');
+    }
+}
+
+function downloadImage() {
+    const link = document.createElement('a');
+    link.href = viewerImg.src;
+    link.download = 'chet_image.png';
+    link.click();
 }
 
 function openVideoViewer(mediaId: string) {
@@ -2860,7 +2896,7 @@ async function handleAiRefineEditPrompt() {
             unrestricted: "Rewrite the instruction to be more direct to achieve the user's intent, while rephrasing it to potentially bypass automated safety filters."
         };
 
-        const promptForRefinement = `You are an expert prompt engineer. Your task is to refine a failed image editing instruction to increase its chance of success, based on a desired safety level.
+        const promptForRefinement = `You are an world class prompt engineer. Your task is to refine a failed image editing instruction to increase its chance of success, based on a desired safety level.
 
 **Instructions:**
 1. Analyze the user's original instruction.
@@ -3141,7 +3177,7 @@ async function handleAiRefineCharacterDetails() {
     
     showLoading('AI is refining the profile...');
     try {
-        const prompt = `You are refining a character profile for a personal visual novel chat experience set in a parallel fantasy world where supernatural races exist alongside humans. Refine and improve this character JSON to make it more cohesive, detailed, and interesting. Ensure all fields are filled plausibly and creatively within this fantasy context. Maintain the original JSON structure perfectly. Do not change user-provided fields such as name, age, ethnicity, gender, race, aura, roles. Incorporate the race naturally into the character's background and traits. Do not add any conversational text, only return the refined JSON object.
+        const prompt = `You are refining a character profile for a personal visual novel chat experience set in a parallel real world where supernatural races exist alongside humans. Refine and improve this character JSON to make it more cohesive, detailed, and interesting. Ensure all fields are filled plausibly and creatively within this fantasy context. Maintain the original JSON structure perfectly. Do not change user-provided fields such as name, age, ethnicity, gender, race, aura, roles. Incorporate the race naturally into the character's background and traits. Do not add any conversational text, only return the refined JSON object.
 
 Current JSON:
 ${JSON.stringify(currentProfile, null, 2)}`;
@@ -3990,6 +4026,12 @@ async function init() {
     
     chatScreenElements.input.addEventListener('input', () => {
         toggleChatButton(chatScreenElements.input.value.trim().length > 0);
+        autosizeTextarea(chatScreenElements.input);
+    });
+
+    // Reset textarea height when form is submitted
+    chatScreenElements.form.addEventListener('submit', () => {
+        chatScreenElements.input.style.height = 'auto';
     });
     toggleChatButton(false);
 
@@ -4386,11 +4428,15 @@ async function init() {
         }
     });
       deleteImageBtn.addEventListener('click', () => {
-        const mediaId = modals.imageViewer.dataset.currentMediaId;
-        if (mediaId && mediaId !== 'ephemeral') {
-            handleDeleteMedia(mediaId);
-        }
-    });
+          const mediaId = modals.imageViewer.dataset.currentMediaId;
+          if (mediaId && mediaId !== 'ephemeral') {
+              handleDeleteMedia(mediaId);
+          }
+      });
+  
+      fullscreenImageBtn.addEventListener('click', fullscreenImage);
+      copyImageBtn.addEventListener('click', copyImage);
+      downloadImageBtn.addEventListener('click', downloadImage);
 
     // Handle prompt editing
     viewerImgPrompt.addEventListener('blur', async () => {
