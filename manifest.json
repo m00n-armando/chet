@@ -8,13 +8,13 @@
   "theme_color": "#1c1c1e",
   "icons": [
     {
-      "src": "https://i.imgur.com/bWWPN5v.png",
-      "type": "image/png",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 50'><text y='35' font-size='32' font-family='Arial, sans-serif' fill='%230a84ff'>CHET</text></svg>",
+      "type": "image/svg+xml",
       "sizes": "192x192"
     },
     {
-      "src": "https://i.imgur.com/bWWPN5v.png",
-      "type": "image/png",
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 50'><text y='35' font-size='32' font-family='Arial, sans-serif' fill='%230a84ff'>CHET</text></svg>",
+      "type": "image/svg+xml",
       "sizes": "512x512"
     }
   ]
