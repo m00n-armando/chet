@@ -150,30 +150,13 @@ body {
 }
 
 .header-logo {
-    height: 3.5rem;
+    height: 4.5rem;
     width: auto;
     object-fit: contain;
     filter: brightness(0) invert(1); /* Make it white to match the theme */
     flex-shrink: 0;
 }
 
-.header-bottom {
-    margin-top: 0.5rem;
-    text-align: center;
-}
-
-#user-profile-display {
-    font-size: 0.85rem;
-    color: var(--text-secondary-color);
-    cursor: pointer;
-    padding: 0.25rem 0.5rem;
-    border-radius: 6px;
-    transition: background-color 0.2s;
-}
-
-#user-profile-display:hover {
-    background-color: var(--surface-color);
-}
 .header-actions {
     display: flex;
     gap: 0.5rem;

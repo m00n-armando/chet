@@ -49,9 +49,6 @@
                   <input type="file" id="import-file-input" accept=".json" style="display: none;" />
                 </div>
               </div>
-              <div class="header-bottom">
-                <div id="user-profile-display"></div>
-              </div>
             </header>
             <div id="contact-list" class="contact-list"></div>
              <footer>
@@ -316,6 +313,10 @@
         <div class="modal-content">
             <button id="close-settings-btn" class="modal-close-btn" aria-label="Close settings">&times;</button>
             <h2>Settings</h2>
+            <div class="settings-section">
+                <h4>User Profile</h4>
+                <p id="settings-user-profile-display">Not logged in</p>
+            </div>
             <div class="settings-section">
                 <h4>API Key</h4>
                 <p id="api-key-display">No key set.</p>

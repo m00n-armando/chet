@@ -837,11 +837,13 @@ ${profileString}
 
 // --- RENDER FUNCTIONS ---
 function renderUserProfile() {
+    const settingsUserProfileDisplay = document.getElementById('settings-user-profile-display')!;
+
     if (userProfile) {
-        userProfileDisplay.textContent = `Logged in as: ${userProfile.name}`;
+        settingsUserProfileDisplay.textContent = `Logged in as: ${userProfile.name}`;
         modals.userProfile.style.display = 'none';
     } else {
-        userProfileDisplay.textContent = 'Tap here to set up your profile.';
+        settingsUserProfileDisplay.textContent = 'Not logged in';
         modals.userProfile.style.display = 'flex';
     }
 }
