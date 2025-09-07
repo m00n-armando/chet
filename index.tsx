@@ -841,10 +841,14 @@ function renderUserProfile() {
 
     if (userProfile) {
         settingsUserProfileDisplay.textContent = `Logged in as: ${userProfile.name}`;
+        // Always close the user profile modal when profile exists
         modals.userProfile.style.display = 'none';
+        console.log("User profile modal closed - profile exists");
     } else {
         settingsUserProfileDisplay.textContent = 'Not logged in';
+        // Only show modal if no profile exists
         modals.userProfile.style.display = 'flex';
+        console.log("User profile modal opened - no profile exists");
     }
 }
 
@@ -1234,7 +1238,13 @@ async function handleUserProfileSubmit(e: Event) {
     e.preventDefault();
     const nameInput = document.getElementById('user-name') as HTMLInputElement;
     const name = nameInput.value.trim();
-    if (name) {
+
+    if (!name) {
+        alert("Please enter your name.");
+        return;
+    }
+
+    try {
         if (userProfile) {
             userProfile.name = name;
         } else {
@@ -1242,6 +1252,14 @@ async function handleUserProfileSubmit(e: Event) {
         }
         await saveAppState({ userProfile, characters });
         renderUserProfile();
+
+        // Clear the form input after successful save
+        nameInput.value = '';
+
+        console.log("User profile saved successfully:", userProfile);
+    } catch (error) {
+        console.error("Failed to save user profile:", error);
+        alert("Failed to save profile. Please try again.");
     }
 }
 
