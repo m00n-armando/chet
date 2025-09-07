@@ -148,6 +148,13 @@ body {
     font-weight: 400;
     color: var(--primary-color);
 }
+
+.header-logo {
+    height: 2.5rem;
+    width: auto;
+    object-fit: contain;
+    filter: brightness(0) invert(1); /* Make it white to match the theme */
+}
 .header-actions {
     display: flex;
     gap: 0.5rem;
