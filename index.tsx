@@ -17,6 +17,7 @@
 import { GoogleGenAI, Type, Chat, HarmBlockThreshold, HarmCategory, GenerateContentResponse, Modality, Part } from "@google/genai";
 import { saveAppState, loadAppState, blobToBase64, base64ToBlob } from './storageServices';
 import JSZip from 'jszip';
+import { inject } from '@vercel/analytics';
 
 // --- TYPES AND INTERFACES ---
 interface UserProfile {
@@ -3908,3 +3909,6 @@ async function init() {
 }
 
 init();
+
+// Initialize Vercel Analytics
+inject();
