@@ -2690,6 +2690,8 @@ function openCharacterEditor(characterId: string | null) {
     set('edit-char-age', profile.basicInfo.age);
     set('edit-char-zodiac', profile.basicInfo.zodiac);
     set('edit-char-ethnicity', profile.basicInfo.ethnicity);
+    set('edit-char-gender', profile.basicInfo.gender);
+    set('edit-char-race', profile.basicInfo.race);
     set('edit-char-cityOfResidence', profile.basicInfo.cityOfResidence);
     set('edit-char-aura', profile.basicInfo.aura);
     set('edit-char-roles', profile.basicInfo.roles);
