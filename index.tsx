@@ -4,7 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ---CHET v.2.0.3---
+// ---CHET v.2.0.4---
+// Changelog v.2.0.4:
+// - Made reference gallery thumbnails smaller (50x50) for better memory efficiency.
+// - Removed fantasy world parameter from avatar prompt to make it more real-world oriented.
+// - Adjusted race visual descriptions to be less fantasy and more subtle for real-world diversity.
+// - Updated character generation to prioritize location based on ethnicity.
+// - Updated version to 2.0.4 for deployment.
 // Changelog v.2.0.3:
 // - Updated avatar prompt to include race information in a more explicit format.
 // - Added thumbnail generation for reference gallery images to save memory space.
@@ -716,6 +722,7 @@ async function generateCharacterProfile(name: string, age: number, ethnicity: st
   - "profession" MUST heavily influence their "clothingStyle" and "hobbies".
   - "backgroundStory" must be the foundation for their "fatalFlaw" and "secretDesire" in a non-obvious, compelling way.
   - Incorporate the race naturally into the character's background, traits, and profession.
+  - The cityOfResidence should align with the character's ethnicity/descent. For example, Chinese ethnicity should have a city in China or a Chinese-majority area.
 - **Conciseness for Physical Attributes:**
   - Keep physical descriptions (bodyType, hairColor, hairStyle, eyeColor, skinTone, breastAndCleavage, clothingStyle, accessories, makeupStyle, overallVibe) brief and specific. Avoid verbose explanations.
 - **Language:** Fill ALL field values in English.
@@ -1421,7 +1428,7 @@ async function constructAvatarPrompt(characterProfile: CharacterProfile): Promis
     }
 
     const prompt = `
-    An ultra-realistic, professional promotional solo portrait of a ${age}-year-old ${raceOrDescent} ${genderNoun}, ${genderPronoun === 'him' ? 'his' : 'her'} race / ${genderPronoun === 'him' ? 'he' : 'she'} is ${basicInfo.race} in this ${fantasyNote}, looking directly at the camera with an expression that matches ${genderPronoun === 'him' ? 'his' : 'her'} '${basicInfo.aura}' aura. Shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.
+    An ultra-realistic, professional promotional solo portrait of a ${age}-year-old ${raceOrDescent} ${genderNoun}, ${genderPronoun === 'him' ? 'his' : 'her'} race / ${genderPronoun === 'him' ? 'he' : 'she'} is ${basicInfo.race}, looking directly at the camera with an expression that matches ${genderPronoun === 'him' ? 'his' : 'her'} '${basicInfo.aura}' aura. Shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.
 ${genderPronoun === 'him' ? 'His' : 'Her'} skin is ${physicalStyle.skinTone} with realistic texture. ${genderPronoun === 'him' ? 'His' : 'Her'} ${hair} is styled professionally. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are ${eyes}. ${genderPronoun === 'him' ? 'He' : 'She'} wears fashionable jewelry including prominent necklace, accentuating ${genderPronoun === 'him' ? 'his' : 'her'} chic style.
 ${genderPronoun === 'him' ? 'His' : 'Her'} makeup is ${makeup} style. ${genderPronoun === 'him' ? 'He' : 'She'} wears ${clothing}, ensuring a clear view of ${genderPronoun === 'him' ? 'his' : 'her'} neck and shoulders.
 Half-body composition from hips up, emphasizing ${genderPronoun === 'him' ? 'his' : 'her'} charismatic expression and confident pose, facing forward. The overall tone is cinematic and high-fashion. Studio lighting with softboxes creates perfect illumination.
@@ -2074,31 +2081,31 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
         const race = basicInfo.race.toLowerCase();
         switch (race) {
             case 'vampire':
-                raceVisualDescription = ' aristocratic bearing, exceptionally pale flawless skin, intense piercing eyes with crimson undertones, sharp elegant facial features, timeless beauty';
+                raceVisualDescription = ' with pale skin and elegant features';
                 break;
             case 'demon':
-                raceVisualDescription = ' striking angular features, subtle iridescent skin quality, deep mysterious intense eyes, aura of controlled power, supernatural grace';
+                raceVisualDescription = ' with strong features and intense eyes';
                 break;
             case 'angel':
-                raceVisualDescription = ' ethereally beautiful features, skin glowing with inner light, strikingly clear luminous eyes, serene otherworldly elegance';
+                raceVisualDescription = ' with beautiful features and clear eyes';
                 break;
             case 'elf':
-                raceVisualDescription = ' elongated graceful features, exceptionally smooth youthful skin, large expressive hypnotic eyes, elegant timeless quality';
+                raceVisualDescription = ' with graceful features and expressive eyes';
                 break;
             case 'orc':
-                raceVisualDescription = ' strong rugged features, tough weathered resilient skin, sharp intelligent eyes, powerful imposing presence';
+                raceVisualDescription = ' with strong features and intelligent eyes';
                 break;
             case 'fairy':
-                raceVisualDescription = ' delicate finely sculpted features, subtle pearlescent skin sheen, large enchanting sparkling eyes, graceful magical quality';
+                raceVisualDescription = ' with delicate features and enchanting eyes';
                 break;
             case 'werewolf':
-                raceVisualDescription = ' strong athletic features, healthy rugged vitality in skin, wild intense eyes, primal powerful energy';
+                raceVisualDescription = ' with athletic features and intense eyes';
                 break;
             case 'ghost':
-                raceVisualDescription = ' ethereal almost translucent features, pale otherworldly skin quality, haunting distant gaze, mysterious spectral elegance';
+                raceVisualDescription = ' with pale skin and mysterious gaze';
                 break;
             case 'beast human':
-                raceVisualDescription = ' striking hybrid features blending human and animal, animal-like intense intelligent eyes, wild untamed beauty';
+                raceVisualDescription = ' with striking features and intelligent eyes';
                 break;
         }
     }
@@ -3200,7 +3207,7 @@ async function handlePhotoUpload(e: Event) {
     }
 }
 
-function createThumbnail(base64Data: string, maxWidth: number = 100, maxHeight: number = 100): Promise<string> {
+function createThumbnail(base64Data: string, maxWidth: number = 50, maxHeight: number = 50): Promise<string> {
     return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
