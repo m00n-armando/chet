@@ -4,11 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ---CHET v.2.0.1---
-// Changelog v.2.0.1:
-// - Fixed dropdown styling in edit profile and change avatar sections.
-// - Improved avatar prompt generation to include race information when applicable.
-// - Updated version to 2.0.1 for deployment.
+// ---CHET v.2.0.2---
+// Changelog v.2.0.2:
+// - Fixed character profile generation to include race information in AI prompts.
+// - Updated profession generation to be appropriate for fantasy races.
+// - Added explicit fantasy world context to character generation prompts.
+// - Updated version to 2.0.2 for deployment.
 
 import { GoogleGenAI, Type, Chat, HarmBlockThreshold, HarmCategory, GenerateContentResponse, Modality, Part } from "@google/genai";
 import { saveAppState, loadAppState, blobToBase64, base64ToBlob } from './storageServices';
@@ -692,16 +693,17 @@ function parseMarkdown(text: string): string {
 async function generateCharacterProfile(name: string, age: number, ethnicity: string, gender: string, race: string, aura: string, role: string): Promise<CharacterProfile> {
   if (!ai) { throw new Error("AI not initialized"); }
 
-  const prompt = `You are an expert character designer for a personal, evolving visual novel chat experience. Based on the initial user input, fill out the provided JSON schema with creative, diverse, and high-quality content in ENGLISH.
+  const prompt = `You are an expert character designer for a personal, evolving visual novel chat experience set in a parallel fantasy world where supernatural races exist alongside humans. Based on the initial user input, fill out the provided JSON schema with creative, diverse, and high-quality content in ENGLISH.
 
 **CRITICAL INSTRUCTIONS:**
 - **Creativity & Diversity:**
   - **Avoid Tropes:** Steer clear of common archetypes. Surprise the user with unique and unexpected combinations of traits.
-  - **Diverse Professions:** Explore a wide range of modern professions. The profession should feel grounded and plausible.
+  - **Diverse Professions:** Explore a wide range of professions appropriate to the character's race and setting. The profession should feel grounded and plausible within their world.
 - **Interconnectivity:**
-  - The character's 'aura' (${aura}), 'zodiac sign', and 'role' (${role}) must deeply influence their 'personalityTraits', 'communicationStyle', 'clothingStyle', and 'overallVibe'. Create a cohesive personality.
+  - The character's 'race' (${race}), 'aura' (${aura}), 'zodiac sign', and 'role' (${role}) must deeply influence their 'personalityTraits', 'communicationStyle', 'clothingStyle', and 'overallVibe'. Create a cohesive personality.
   - "profession" MUST heavily influence their "clothingStyle" and "hobbies".
   - "backgroundStory" must be the foundation for their "fatalFlaw" and "secretDesire" in a non-obvious, compelling way.
+  - Incorporate the race naturally into the character's background, traits, and profession.
 - **Conciseness for Physical Attributes:**
   - Keep physical descriptions (bodyType, hairColor, hairStyle, eyeColor, skinTone, breastAndCleavage, clothingStyle, accessories, makeupStyle, overallVibe) brief and specific. Avoid verbose explanations.
 - **Language:** Fill ALL field values in English.
@@ -711,6 +713,7 @@ async function generateCharacterProfile(name: string, age: number, ethnicity: st
 - Name: ${name}
 - Age: ${age}
 - Ethnicity/Descent: ${ethnicity}
+- Race: ${race}
 - Aura: ${aura}
 - Role: ${role}`;
 
@@ -2857,7 +2860,7 @@ async function handleAiRefineCharacterDetails() {
     
     showLoading('AI is refining the profile...');
     try {
-        const prompt = `Refine and improve this character JSON to make it more cohesive, detailed, and interesting. Ensure all fields are filled plausibly and creatively. Maintain the original JSON structure perfectly. Do not add any conversational text, only return the refined JSON object.
+        const prompt = `You are refining a character profile for a personal visual novel chat experience set in a parallel fantasy world where supernatural races exist alongside humans. Refine and improve this character JSON to make it more cohesive, detailed, and interesting. Ensure all fields are filled plausibly and creatively within this fantasy context. Maintain the original JSON structure perfectly. Do not change user-provided fields such as name, age, ethnicity, gender, race, aura, roles. Incorporate the race naturally into the character's background and traits. Do not add any conversational text, only return the refined JSON object.
 
 Current JSON:
 ${JSON.stringify(currentProfile, null, 2)}`;
