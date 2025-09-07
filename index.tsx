@@ -4,7 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ---CHET v.2.0.2---
+// ---CHET v.2.0.3---
+// Changelog v.2.0.3:
+// - Updated avatar prompt to include race information in a more explicit format.
+// - Added thumbnail generation for reference gallery images to save memory space.
+// - Updated version to 2.0.3 for deployment.
 // Changelog v.2.0.2:
 // - Fixed character profile generation to include race information in AI prompts.
 // - Updated profession generation to be appropriate for fantasy races.
@@ -128,6 +132,7 @@ let characterCreationPreview: CharacterCreationPreview | null = null;
 let isGeneratingResponse = false;
 let activeCharacterSessionContext: SessionContext | null = null;
 let manualImageReference: { base64Data: string; mimeType: string } | null = null;
+let editImageReference: { base64Data: string; mimeType: string } | null = null;
 let isFirstMessageInSession = false;
 let isVideoGenerationEnabled = false;
 let editingContext: 'new' | 'existing' = 'existing';
@@ -348,6 +353,12 @@ const imageEditElements = {
     confirmBtn: document.getElementById('confirm-edit-btn')! as HTMLButtonElement,
     cancelBtn: document.getElementById('cancel-edit-btn')! as HTMLButtonElement,
     aiRefineBtn: document.getElementById('ai-refine-edit-prompt-btn')! as HTMLButtonElement,
+    selectFromGalleryBtn: document.getElementById('edit-select-from-gallery-btn')! as HTMLButtonElement,
+    refDropzone: document.getElementById('edit-reference-image-dropzone')! as HTMLDivElement,
+    refInput: document.getElementById('edit-reference-image-input')! as HTMLInputElement,
+    refPreview: document.getElementById('edit-reference-image-preview')! as HTMLImageElement,
+    refDropzonePrompt: document.querySelector('#edit-reference-image-dropzone .dropzone-prompt')! as HTMLDivElement,
+    refRemoveBtn: document.getElementById('edit-remove-reference-image-btn')! as HTMLButtonElement,
 };
 const avatarPromptElements = {
     textarea: document.getElementById('avatar-prompt-textarea')! as HTMLTextAreaElement,
@@ -1410,9 +1421,9 @@ async function constructAvatarPrompt(characterProfile: CharacterProfile): Promis
     }
 
     const prompt = `
-An ultra-realistic, professional promotional solo portrait of ${genderPronoun}, a ${age}-year-old ${raceOrDescent} ${genderNoun},${fantasyNote} looking directly at the camera with an expression that matches ${genderPronoun === 'him' ? 'his' : 'her'} '${basicInfo.aura}' aura. Shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.
+    An ultra-realistic, professional promotional solo portrait of a ${age}-year-old ${raceOrDescent} ${genderNoun}, ${genderPronoun === 'him' ? 'his' : 'her'} race / ${genderPronoun === 'him' ? 'he' : 'she'} is ${basicInfo.race} in this ${fantasyNote}, looking directly at the camera with an expression that matches ${genderPronoun === 'him' ? 'his' : 'her'} '${basicInfo.aura}' aura. Shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.
 ${genderPronoun === 'him' ? 'His' : 'Her'} skin is ${physicalStyle.skinTone} with realistic texture. ${genderPronoun === 'him' ? 'His' : 'Her'} ${hair} is styled professionally. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are ${eyes}. ${genderPronoun === 'him' ? 'He' : 'She'} wears fashionable jewelry including prominent necklace, accentuating ${genderPronoun === 'him' ? 'his' : 'her'} chic style.
-${genderPronoun === 'him' ? 'His' : 'Her'} makeup is ${makeup} style. ${genderPronoun === 'him' ? 'He' : 'She'} wears ${clothing}, ensuring a clear view of ${genderPronoun === 'him' ? 'his' : 'her'} neck and shoulders.${raceDescription}
+${genderPronoun === 'him' ? 'His' : 'Her'} makeup is ${makeup} style. ${genderPronoun === 'him' ? 'He' : 'She'} wears ${clothing}, ensuring a clear view of ${genderPronoun === 'him' ? 'his' : 'her'} neck and shoulders.
 Half-body composition from hips up, emphasizing ${genderPronoun === 'him' ? 'his' : 'her'} charismatic expression and confident pose, facing forward. The overall tone is cinematic and high-fashion. Studio lighting with softboxes creates perfect illumination.
 9:16 aspect ratio. The image exhibits exceptional professional photography quality - tack-sharp focus on the eyes, creamy bokeh background, and perfect exposure balance. No digital art, no 3D rendering, pure photographic excellence.
 `.trim().replace(/\n/g, ' ').replace(/\s\s+/g, ' ');
@@ -1875,16 +1886,30 @@ async function generateImage(
     }
 }
 
-async function editImage(base64ImageData: string, mimeType: string, instruction: string, safetyLevel: SafetyLevel = 'flexible'): Promise<string> {
+async function editImage(base64ImageData: string, mimeType: string, instruction: string, safetyLevel: SafetyLevel = 'flexible', referenceImage?: { base64Data: string; mimeType: string }): Promise<string> {
     if (!ai) { throw new Error("AI not initialized"); }
     const base64DataOnly = base64ImageData.split(',')[1];
     try {
         console.log(`Attempting to edit image with instruction:`, instruction);
-        
-        const parts: Part[] = [
-            { inlineData: { data: base64DataOnly, mimeType: mimeType } },
-            { text: instruction },
-        ];
+
+        const parts: Part[] = [];
+
+        // Add reference image if provided
+        if (referenceImage) {
+            console.log('Using reference image for editing.');
+            parts.push({
+                inlineData: {
+                    data: referenceImage.base64Data,
+                    mimeType: referenceImage.mimeType
+                }
+            });
+        }
+
+        // Add the image to be edited
+        parts.push({ inlineData: { data: base64DataOnly, mimeType: mimeType } });
+
+        // Add the instruction
+        parts.push({ text: instruction });
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image-preview',
@@ -1915,11 +1940,11 @@ async function editImage(base64ImageData: string, mimeType: string, instruction:
     } catch (error) {
         console.error(`Image editing failed.`, error);
         const errorMessage = error instanceof Error ? error.message : String(error);
-        
+
         if (errorMessage.includes('safety policies') || errorMessage.includes('blocked')) {
             throw new Error('Image editing failed. The instruction was blocked by safety policies. Please try a different instruction or a more flexible safety level.');
         }
-        
+
         throw new Error(`Image editing failed: ${errorMessage}`);
     }
 }
@@ -2638,6 +2663,8 @@ function openImageEditor(mediaId: string) {
 
 function closeImageEditor() {
     modals.imageEdit.style.display = 'none';
+    // Reset the reference image state
+    resetEditReferenceImageUI();
 }
 
 async function handleConfirmImageEdit() {
@@ -2670,10 +2697,10 @@ async function handleConfirmImageEdit() {
     placeholder.className = 'media-item loading';
     placeholder.dataset.mediaId = newMediaId;
     placeholder.innerHTML = `<div class="spinner"></div><p>Applying edit...</p>`;
-    
+
     try {
-        const newImageData = await editImage(originalImageData, mimeType, instruction, selectedSafetyLevel);
-        
+        const newImageData = await editImage(originalImageData, mimeType, instruction, selectedSafetyLevel, editImageReference);
+
         const newMedia: Media = {
             id: newMediaId,
             type: 'image',
@@ -2688,7 +2715,7 @@ async function handleConfirmImageEdit() {
     } catch (error) {
         console.error("Image edit failed:", error);
         const errorMessage = error instanceof Error ? error.message : String(error);
-        
+
         // Remove the temporary loading placeholder on failure
         const tempPlaceholder = mediaGallery.querySelector(`[data-media-id="${newMediaId}"]`);
         if (tempPlaceholder) {
@@ -3173,8 +3200,23 @@ async function handlePhotoUpload(e: Event) {
     }
 }
 
+function createThumbnail(base64Data: string, maxWidth: number = 100, maxHeight: number = 100): Promise<string> {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d')!;
+            const ratio = Math.min(maxWidth / img.width, maxHeight / img.height);
+            canvas.width = img.width * ratio;
+            canvas.height = img.height * ratio;
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.8));
+        };
+        img.src = base64Data;
+    });
+}
 // --- Manual Image Modal & Reference Gallery ---
-function openReferenceGallery(onSelect: (mediaData: { base64Data: string; mimeType: string; dataUrl: string }) => void) {
+async function openReferenceGallery(onSelect: (mediaData: { base64Data: string; mimeType: string; dataUrl: string }) => void) {
     const characterId = activeCharacterId;
     if (!characterId) return;
     const character = characters.find(c => c.id === characterId);
@@ -3185,7 +3227,8 @@ function openReferenceGallery(onSelect: (mediaData: { base64Data: string; mimeTy
     // Add Avatar first
     const avatarItem = document.createElement('div');
     avatarItem.className = 'media-item';
-    avatarItem.innerHTML = `<img src="${character.avatar}" alt="Character Avatar Reference">`;
+    const avatarThumb = await createThumbnail(character.avatar);
+    avatarItem.innerHTML = `<img src="${avatarThumb}" alt="Character Avatar Reference">`;
     avatarItem.addEventListener('click', () => {
         const mimeType = character.avatar.match(/data:(.*);base64,/)?.[1] || 'image/png';
         const base64Data = character.avatar.split(',')[1];
@@ -3195,23 +3238,20 @@ function openReferenceGallery(onSelect: (mediaData: { base64Data: string; mimeTy
     referenceGalleryElements.grid.appendChild(avatarItem);
 
     // Add media gallery images
-    character.media
-        .filter(m => m.type === 'image')
-        .slice()
-        .reverse()
-        .forEach(media => {
-            const dataUrl = media.data as string;
-            const item = document.createElement('div');
-            item.className = 'media-item';
-            item.innerHTML = `<img src="${dataUrl}" alt="Reference Image">`;
-            item.addEventListener('click', () => {
-                const mimeType = dataUrl.match(/data:(.*);base64,/)?.[1] || 'image/png';
-                const base64Data = dataUrl.split(',')[1];
-                onSelect({ base64Data, mimeType, dataUrl });
-                modals.referenceGallery.style.display = 'none';
-            });
-            referenceGalleryElements.grid.appendChild(item);
+    for (const media of character.media.filter(m => m.type === 'image').slice().reverse()) {
+        const dataUrl = media.data as string;
+        const item = document.createElement('div');
+        item.className = 'media-item';
+        const thumb = await createThumbnail(dataUrl);
+        item.innerHTML = `<img src="${thumb}" alt="Reference Image">`;
+        item.addEventListener('click', () => {
+            const mimeType = dataUrl.match(/data:(.*);base64,/)?.[1] || 'image/png';
+            const base64Data = dataUrl.split(',')[1];
+            onSelect({ base64Data, mimeType, dataUrl });
+            modals.referenceGallery.style.display = 'none';
         });
+        referenceGalleryElements.grid.appendChild(item);
+    }
 
     modals.referenceGallery.style.display = 'flex';
 }
@@ -3257,18 +3297,27 @@ function resetReferenceImageUI() {
     manualImageElements.refRemoveBtn.classList.add('hidden');
 }
 
+function resetEditReferenceImageUI() {
+    editImageReference = null;
+    imageEditElements.refInput.value = '';
+    imageEditElements.refPreview.classList.add('hidden');
+    imageEditElements.refPreview.src = '';
+    imageEditElements.refDropzonePrompt.classList.remove('hidden');
+    imageEditElements.refRemoveBtn.classList.add('hidden');
+}
+
 async function processReferenceImage(file: File | null) {
     if (!file || !file.type.startsWith('image/')) {
         if (file) alert("Please select a valid image file.");
         return;
     }
-    
+
     try {
         const base64Image = await blobToBase64(file);
         const base64Data = base64Image.split(',')[1];
 
         manualImageReference = { base64Data, mimeType: file.type };
-        
+
         manualImageElements.refPreview.src = base64Image;
         manualImageElements.refPreview.classList.remove('hidden');
         manualImageElements.refDropzonePrompt.classList.add('hidden');
@@ -3277,6 +3326,29 @@ async function processReferenceImage(file: File | null) {
         console.error("Error processing reference image:", error);
         alert("Failed to process the image.");
         resetReferenceImageUI();
+    }
+}
+
+async function processEditReferenceImage(file: File | null) {
+    if (!file || !file.type.startsWith('image/')) {
+        if (file) alert("Please select a valid image file.");
+        return;
+    }
+
+    try {
+        const base64Image = await blobToBase64(file);
+        const base64Data = base64Image.split(',')[1];
+
+        editImageReference = { base64Data, mimeType: file.type };
+
+        imageEditElements.refPreview.src = base64Image;
+        imageEditElements.refPreview.classList.remove('hidden');
+        imageEditElements.refDropzonePrompt.classList.add('hidden');
+        imageEditElements.refRemoveBtn.classList.remove('hidden');
+    } catch (error) {
+        console.error("Error processing reference image:", error);
+        alert("Failed to process the image.");
+        resetEditReferenceImageUI();
     }
 }
 
@@ -3895,6 +3967,48 @@ async function init() {
     imageEditElements.cancelBtn.addEventListener('click', closeImageEditor);
     imageEditElements.confirmBtn.addEventListener('click', handleConfirmImageEdit);
     imageEditElements.aiRefineBtn.addEventListener('click', handleAiRefineEditPrompt);
+
+    // Image Edit Gallery Reference Functionality
+    imageEditElements.selectFromGalleryBtn.addEventListener('click', () => {
+        openReferenceGallery((mediaData) => {
+            editImageReference = { base64Data: mediaData.base64Data, mimeType: mediaData.mimeType };
+            imageEditElements.refPreview.src = mediaData.dataUrl;
+            imageEditElements.refPreview.classList.remove('hidden');
+            imageEditElements.refDropzonePrompt.classList.add('hidden');
+            imageEditElements.refRemoveBtn.classList.remove('hidden');
+        });
+    });
+
+    imageEditElements.refDropzone.addEventListener('click', () => imageEditElements.refInput.click());
+    imageEditElements.refInput.addEventListener('change', (e) => processEditReferenceImage((e.target as HTMLInputElement).files?.[0] || null));
+    imageEditElements.refRemoveBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        resetEditReferenceImageUI();
+    });
+    imageEditElements.refDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        imageEditElements.refDropzone.classList.add('dragover');
+    });
+    imageEditElements.refDropzone.addEventListener('dragleave', () => {
+        imageEditElements.refDropzone.classList.remove('dragover');
+    });
+    imageEditElements.refDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        imageEditElements.refDropzone.classList.remove('dragover');
+        const file = e.dataTransfer?.files?.[0];
+        processEditReferenceImage(file || null);
+    });
+    imageEditElements.refDropzone.addEventListener('paste', (e) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        for (const item of items) {
+            if (item.type.indexOf('image') !== -1) {
+                const file = item.getAsFile();
+                processEditReferenceImage(file);
+                break;
+            }
+        }
+    });
     
     // Manual Image Modal Handlers
     manualImageElements.cancelBtn.addEventListener('click', () => {
