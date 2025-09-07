@@ -1316,7 +1316,7 @@ async function handleGenerateSheet(e: Event) {
         age: parseInt(formData.get('char-age') as string, 10),
         ethnicity: formData.get('char-ethnicity') as string,
         gender: formData.get('char-gender') as string,
-        race: formData.get('char-race') as string,
+        race: (formData.get('char-race') as string).toLowerCase(),
         aura: formData.get('char-aura') as string,
         roles: formData.get('char-roles') as string,
     };
@@ -1365,10 +1365,12 @@ async function constructAvatarPrompt(characterProfile: CharacterProfile): Promis
     const genderPronoun = basicInfo.gender === 'male' ? 'him' : 'her';
     const genderNoun = basicInfo.gender === 'male' ? 'man' : 'woman';
 
-    const raceDescription = basicInfo.race && basicInfo.race.toLowerCase() !== 'human' ? ` ${genderPronoun === 'him' ? 'His' : 'Her'} race is ${basicInfo.race}.` : '';
+    const isFantasyRace = basicInfo.race && basicInfo.race.toLowerCase() !== 'human';
+    const fantasyNote = isFantasyRace ? ` In a parallel fantasy world where various supernatural races like ${basicInfo.race.toLowerCase()}s exist alongside humans,` : '';
+    const raceDescription = isFantasyRace ? ` ${genderPronoun === 'him' ? 'His' : 'Her'} race is ${basicInfo.race}.` : '';
 
     const prompt = `
-An ultra-realistic, professional promotional solo portrait of ${genderPronoun}, a ${age}-year-old ${raceOrDescent} ${genderNoun}, looking directly at the camera with an expression that matches ${genderPronoun === 'him' ? 'his' : 'her'} '${basicInfo.aura}' aura. Shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.
+An ultra-realistic, professional promotional solo portrait of ${genderPronoun}, a ${age}-year-old ${raceOrDescent} ${genderNoun},${fantasyNote} looking directly at the camera with an expression that matches ${genderPronoun === 'him' ? 'his' : 'her'} '${basicInfo.aura}' aura. Shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.
 ${genderPronoun === 'him' ? 'His' : 'Her'} skin is ${physicalStyle.skinTone} with realistic texture. ${genderPronoun === 'him' ? 'His' : 'Her'} ${hair} is styled professionally. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are ${eyes}. ${genderPronoun === 'him' ? 'He' : 'She'} wears fashionable jewelry including prominent necklace, accentuating ${genderPronoun === 'him' ? 'his' : 'her'} chic style.
 ${genderPronoun === 'him' ? 'His' : 'Her'} makeup is ${makeup} style. ${genderPronoun === 'him' ? 'He' : 'She'} wears ${clothing}, ensuring a clear view of ${genderPronoun === 'him' ? 'his' : 'her'} neck and shoulders.${raceDescription}
 Half-body composition from hips up, emphasizing ${genderPronoun === 'him' ? 'his' : 'her'} charismatic expression and confident pose, facing forward. The overall tone is cinematic and high-fashion. Studio lighting with softboxes creates perfect illumination.
@@ -2730,7 +2732,7 @@ async function handleSaveCharacterChanges() {
             zodiac: get('edit-char-zodiac'),
             ethnicity: get('edit-char-ethnicity'),
             gender: get('edit-char-gender'),
-            race: get('edit-char-race'),
+            race: get('edit-char-race').toLowerCase(),
             cityOfResidence: get('edit-char-cityOfResidence'),
             aura: get('edit-char-aura'),
             roles: get('edit-char-roles'),
