@@ -166,7 +166,6 @@ body {
     max-width: 450px;
     object-fit: contain;
     object-position: center;
-    filter: brightness(0) invert(1); /* Make it white to match the theme */
     flex-shrink: 0;
     margin-right: 1rem;
     pointer-events: none;
