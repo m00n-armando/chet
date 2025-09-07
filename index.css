@@ -163,7 +163,7 @@ body {
 .header-logo {
     height: 4.5rem;
     width: auto;
-    max-width: 180px;
+    max-width: 280px;
     object-fit: contain;
     filter: brightness(0) invert(1); /* Make it white to match the theme */
     flex-shrink: 0;
