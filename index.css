@@ -142,6 +142,17 @@ body {
     justify-content: space-between;
     align-items: center;
 }
+
+.header-left {
+    flex: 0 0 auto;
+}
+
+.header-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5rem;
+}
 .home-header h1 {
     font-family: 'Pacifico', cursive;
     font-size: 2.5rem;
@@ -192,14 +203,19 @@ body {
     width: 24px;
     height: 24px;
 }
-#user-profile-display {
-    margin-top: 0.5rem;
-    font-size: 0.9rem;
+.user-profile-display {
+    font-size: 0.8rem;
     color: var(--text-secondary-color);
     cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    text-align: right;
 }
-#user-profile-display:hover {
+
+.user-profile-display:hover {
     color: var(--primary-color);
+    background-color: rgba(10, 132, 255, 0.1);
 }
 .contact-list {
     flex-grow: 1;
