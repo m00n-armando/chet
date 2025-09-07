@@ -9,7 +9,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Pacifico&display=swap"
       rel="stylesheet"
     />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     
     <!-- PWA Tags -->
     <meta name="theme-color" content="#1c1c1e"/>
@@ -629,6 +629,38 @@
     <link rel="stylesheet" href="/index.css">
 
     <script>
+      // Dynamic viewport height calculation for mobile devices
+      function setDynamicViewportHeight() {
+        // Calculate the actual viewport height accounting for mobile browser UI
+        const vh = window.innerHeight * 0.01;
+        const vw = window.innerWidth * 0.01;
+
+        // Set CSS custom properties for accurate viewport calculations
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
+        document.documentElement.style.setProperty('--vw', `${vw}px`);
+        document.documentElement.style.setProperty('--actual-vh', `${window.innerHeight}px`);
+        document.documentElement.style.setProperty('--actual-vw', `${window.innerWidth}px`);
+
+        // Also set the height directly on the body for immediate effect
+        document.body.style.height = `${window.innerHeight}px`;
+      }
+
+      // Set initial height
+      setDynamicViewportHeight();
+
+      // Update height on resize and orientation change
+      window.addEventListener('resize', setDynamicViewportHeight);
+      window.addEventListener('orientationchange', () => {
+        // Small delay to ensure the viewport has updated after orientation change
+        setTimeout(setDynamicViewportHeight, 100);
+      });
+
+      // Handle visual viewport API for better mobile support
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', setDynamicViewportHeight);
+      }
+
+      // Service Worker registration
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/service-worker.js').then(registration => {

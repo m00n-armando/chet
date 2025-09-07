@@ -44,7 +44,7 @@ body {
   align-items: flex-start;
   padding: 1rem;
   width: 100%;
-  min-height: 100vh;
+  min-height: var(--actual-vh, 100vh);
   padding-bottom: 2rem;
 }
 
@@ -52,7 +52,7 @@ body {
   position: relative;
   width: 100%;
   max-width: 420px;
-  height: min(95vh, 850px);
+  height: min(calc(var(--actual-vh, 100vh) * 0.95), 850px);
   background: #111;
   border-radius: 40px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5),
@@ -1590,7 +1590,7 @@ input:checked + .slider:before {
 
     #phone-ui {
         height: auto;
-        min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        min-height: calc(var(--actual-vh, 100vh) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
         max-height: none;
         border-radius: 0;
         padding: 0;
@@ -1599,7 +1599,7 @@ input:checked + .slider:before {
 
     .phone-screen {
         border-radius: 0;
-        min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        min-height: calc(var(--actual-vh, 100vh) - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     }
 
     #media-panel {
@@ -1613,7 +1613,7 @@ input:checked + .slider:before {
     .create-contact-body {
         flex-direction: column;
         overflow-y: auto;
-        min-height: calc(100vh - 200px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        min-height: calc(var(--actual-vh, 100vh) - 200px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     }
 
     #avatar-preview-panel {
@@ -1631,7 +1631,7 @@ input:checked + .slider:before {
 
     /* Ensure content can scroll on small screens */
     .contact-list, .chat-messages, .create-contact-body {
-        max-height: calc(100vh - 200px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+        max-height: calc(var(--actual-vh, 100vh) - 200px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
         overflow-y: auto;
         -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
     }
