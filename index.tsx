@@ -733,6 +733,8 @@ async function generateCharacterProfile(name: string, age: number, ethnicity: st
         name,
         age,
         ethnicity,
+        gender,
+        race,
         aura,
         roles: role,
         ...parsedProfile.basicInfo,
