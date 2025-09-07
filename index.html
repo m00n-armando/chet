@@ -111,6 +111,30 @@
                       <label for="char-ethnicity">Ethnicity / Descent</label>
                       <input type="text" id="char-ethnicity" name="char-ethnicity" placeholder="e.g., Korean, Japanese" required />
                   </div>
+                  <div class="form-group">
+                      <label for="char-gender">Gender</label>
+                      <select id="char-gender" name="char-gender" required>
+                          <option value="female" selected>Female</option>
+                          <option value="male">Male</option>
+                          <option value="transgender female">Transgender Female</option>
+                          <option value="transgender male">Transgender Male</option>
+                      </select>
+                  </div>
+                  <div class="form-group">
+                      <label for="char-race">Race</label>
+                      <select id="char-race" name="char-race" required>
+                          <option value="human" selected>Human</option>
+                          <option value="beast human">Beast Human</option>
+                          <option value="vampire">Vampire</option>
+                          <option value="demon">Demon</option>
+                          <option value="angel">Angel</option>
+                          <option value="elf">Elf</option>
+                          <option value="orc">Orc</option>
+                          <option value="fairy">Fairy</option>
+                          <option value="werewolf">Werewolf</option>
+                          <option value="ghost">Ghost</option>
+                      </select>
+                  </div>
                    <div class="form-group">
                       <label for="char-aura">Aura</label>
                       <select id="char-aura" name="char-aura" required>
@@ -129,20 +153,28 @@
                       </select>
                   </div>
                    <div class="form-group">
-                      <label for="char-roles">Role</label>
-                      <select id="char-roles" name="char-roles" required>
-                          <option value="new acquaintance" selected>New Acquaintance</option>
-                          <option value="childhood friend">Childhood Friend</option>
-                          <option value="coworker">Coworker</option>
-                          <option value="step sister">Step sister</option>
-                          <option value="neighbor">Neighbor</option>
-                          <option value="classmate">Classmate</option>
-                          <option value="fwb/sex partner">FWB / Sex Partner</option>
-                          <option value="lover">Lover</option>
-                          <option value="step-sibling">Step-Sibling</option>
-                          <option value="girlfriend's step mother">Girlfriend's step mother</option>
-                      </select>
-                  </div>
+                       <label for="char-roles">Role</label>
+                       <select id="char-roles" name="char-roles" required>
+                           <option value="new acquaintance" selected>New Acquaintance</option>
+                           <option value="childhood friend">Childhood Friend</option>
+                           <option value="coworker">Coworker</option>
+                           <option value="step sibling" data-gender="neutral">Step Sibling</option>
+                           <option value="step sister" data-gender="female">Step Sister</option>
+                           <option value="step brother" data-gender="male">Step Brother</option>
+                           <option value="neighbor">Neighbor</option>
+                           <option value="classmate">Classmate</option>
+                           <option value="fwb/sex partner">FWB / Sex Partner</option>
+                           <option value="lover">Lover</option>
+                           <option value="girlfriend's step mother">Girlfriend's Step Mother</option>
+                           <option value="boyfriend's step father">Boyfriend's Step Father</option>
+                           <option value="best friend">Best Friend</option>
+                           <option value="roommate">Roommate</option>
+                           <option value="boss">Boss</option>
+                           <option value="employee">Employee</option>
+                           <option value="teacher">Teacher</option>
+                           <option value="student">Student</option>
+                       </select>
+                   </div>
                   <button type="submit" class="submit-btn">Generate Full Profile</button>
               </form>
                <div id="character-preview-panel">
@@ -195,6 +227,28 @@
                         <div class="form-group"><label for="edit-char-age">Age</label><input type="number" id="edit-char-age" /></div>
                         <div class="form-group"><label for="edit-char-zodiac">Zodiac</label><input type="text" id="edit-char-zodiac" /></div>
                         <div class="form-group"><label for="edit-char-ethnicity">Ethnicity</label><input type="text" id="edit-char-ethnicity" /></div>
+                        <div class="form-group"><label for="edit-char-gender">Gender</label>
+                          <select id="edit-char-gender">
+                              <option value="female">Female</option>
+                              <option value="male">Male</option>
+                              <option value="transgender female">Transgender Female</option>
+                              <option value="transgender male">Transgender Male</option>
+                          </select>
+                        </div>
+                        <div class="form-group"><label for="edit-char-race">Race</label>
+                          <select id="edit-char-race">
+                              <option value="human">Human</option>
+                              <option value="beast human">Beast Human</option>
+                              <option value="vampire">Vampire</option>
+                              <option value="demon">Demon</option>
+                              <option value="angel">Angel</option>
+                              <option value="elf">Elf</option>
+                              <option value="orc">Orc</option>
+                              <option value="fairy">Fairy</option>
+                              <option value="werewolf">Werewolf</option>
+                              <option value="ghost">Ghost</option>
+                          </select>
+                        </div>
                         <div class="form-group"><label for="edit-char-cityOfResidence">City of Residence</label><input type="text" id="edit-char-cityOfResidence" /></div>
                         <div class="form-group"><label for="edit-char-aura">Aura</label>
                           <select id="edit-char-aura">
@@ -212,20 +266,28 @@
                                 <option value="Empathetic">Empathetic</option>
                           </select>
                         </div>
-                        <div class="form-group"><label for="edit-char-roles">Role</label>
-                          <select id="edit-char-roles">
-                            <option value="new acquaintance">New Acquaintance</option>
-                            <option value="childhood friend">Childhood Friend</option>
-                            <option value="coworker">Coworker</option>
-                            <option value="step sister">Step sister</option>
-                            <option value="neighbor">Neighbor</option>
-                            <option value="classmate">Classmate</option>
-                            <option value="fwb/sex partner">FWB / Sex Partner</option>
-                            <option value="lover">Lover</option>
-                            <option value="step-sibling">Step-Sibling</option>
-                            <option value="girlfriend's step mother">Girlfriend's step mother</option>
-                          </select>
-                        </div>
+                      <div class="form-group"><label for="edit-char-roles">Role</label>
+                        <select id="edit-char-roles">
+                          <option value="new acquaintance">New Acquaintance</option>
+                          <option value="childhood friend">Childhood Friend</option>
+                          <option value="coworker">Coworker</option>
+                          <option value="step sibling" data-gender="neutral">Step Sibling</option>
+                          <option value="step sister" data-gender="female">Step Sister</option>
+                          <option value="step brother" data-gender="male">Step Brother</option>
+                          <option value="neighbor">Neighbor</option>
+                          <option value="classmate">Classmate</option>
+                          <option value="fwb/sex partner">FWB / Sex Partner</option>
+                          <option value="lover">Lover</option>
+                          <option value="girlfriend's step mother">Girlfriend's Step Mother</option>
+                          <option value="boyfriend's step father">Boyfriend's Step Father</option>
+                          <option value="best friend">Best Friend</option>
+                          <option value="roommate">Roommate</option>
+                          <option value="boss">Boss</option>
+                          <option value="employee">Employee</option>
+                          <option value="teacher">Teacher</option>
+                          <option value="student">Student</option>
+                        </select>
+                      </div>
                     </details>
                     <details>
                         <summary><h3>Physical & Style</h3></summary>
@@ -361,17 +423,15 @@
             </div>
             <div class="settings-section about-section">
                 <h4>About CHET</h4>
-                <p>Version 1.2.3</p>
+                <p>Version 2.0.0</p>
                 <div class="changelog-section">
-                  <p><strong>Changelog v.1.2.3:</strong></p>
+                  <p><strong>Changelog v.2.0.0:</strong></p>
                   <ul>
-                    <li>Implemented a dynamic 'Intimacy Level' system (0-100).</li>
-                    <li>AI's personality and responses now evolve based on the current Intimacy Level.</li>
-                    <li>Intimacy Level starts at a value determined by the character's role.</li>
-                    <li>Intimacy Level can increase or decrease based on user interactions.</li>
-                    <li>Added a visual Intimacy Meter (❤️) to the chat header, toggleable in settings.</li>
-                    <li>Enhanced character generation to better interconnect role, aura, zodiac, and style.</li>
-                    <li>Updated 'Aura' options to be more creative and evocative.</li>
+                    <li>Added gender and race selection options for character creation and editing.</li>
+                    <li>Gender-adaptive roles: step sister/brother, girlfriend/boyfriend, etc.</li>
+                    <li>Improved physical attribute descriptions to be more concise and specific.</li>
+                    <li>Fixed dropdown styling issues in character editor.</li>
+                    <li>Enhanced character generation prompts for better quality output.</li>
                   </ul>
                 </div>
             </div>

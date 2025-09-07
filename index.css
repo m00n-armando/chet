@@ -408,6 +408,18 @@ body {
     box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.3);
 }
 
+/* Fix select dropdown options styling */
+select option {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+}
+
+/* Fix editor form select dropdown styling */
+.editor-form select option {
+    background-color: var(--surface-color);
+    color: var(--text-color);
+}
+
 .submit-btn, .ai-assist-button {
     padding: 0.8rem;
     border-radius: 8px;

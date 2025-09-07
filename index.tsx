@@ -4,15 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ---CHET v.1.2.3---
-// Changelog v.1.2.3:
-// - Implemented a dynamic 'Intimacy Level' system (0-100).
-// - AI's personality and responses now evolve based on the current Intimacy Level.
-// - Intimacy Level starts at a value determined by the character's role.
-// - Intimacy Level can increase or decrease based on user interactions.
-// - Added a visual Intimacy Meter (❤️) to the chat header, toggleable in settings.
-// - Enhanced character generation to better interconnect role, aura, zodiac, and style.
-// - Updated 'Aura' options to be more creative and evocative.
+// ---CHET v.2.0.0---
+// Changelog v.2.0.0:
+// - Added gender and race selection options for character creation and editing.
+// - Gender-adaptive roles: step sister/brother, girlfriend/boyfriend, etc.
+// - Improved physical attribute descriptions to be more concise and specific.
+// - Fixed dropdown styling issues in character editor.
+// - Enhanced character generation prompts for better quality output.
 
 import { GoogleGenAI, Type, Chat, HarmBlockThreshold, HarmCategory, GenerateContentResponse, Modality, Part } from "@google/genai";
 import { saveAppState, loadAppState, blobToBase64, base64ToBlob } from './storageServices';
@@ -34,6 +32,8 @@ interface CharacterProfile {
     age: number;
     zodiac: string;
     ethnicity: string;
+    gender: string;
+    race: string;
     cityOfResidence: string;
     aura: string;
     roles: string;
@@ -167,11 +167,20 @@ const ROLE_TO_INTIMACY_MAP: Record<string, number> = {
     'coworker': 10,
     'neighbor': 15,
     'childhood friend': 30,
+    'step sibling': 20,
     'step sister': 20,
+    'step brother': 20,
     'fwb/sex partner': 40,
     'lover': 60,
     "step-sibling": 20,
-    "girlfriend's step mother": 10
+    "girlfriend's step mother": 10,
+    "boyfriend's step father": 10,
+    "best friend": 35,
+    "roommate": 25,
+    "boss": 10,
+    "employee": 10,
+    "teacher": 15,
+    "student": 15
 };
 
 
@@ -198,7 +207,7 @@ const CHARACTER_PROFILE_SCHEMA = {
         hairStyle: { type: Type.STRING },
         eyeColor: { type: Type.STRING },
         skinTone: { type: Type.STRING },
-        breastAndCleavage: { type: Type.STRING, description: "Description of breast size and typical cleavage style." },
+        breastAndCleavage: { type: Type.STRING, description: "A concise description of breast size (e.g., A-cup, B-cup) and typical cleavage style. Keep it brief and specific, like 'A natural, modest A-cup, rarely accentuated.'" },
         clothingStyle: { type: Type.STRING, description: "Influenced by their profession and aura." },
         accessories: { type: Type.STRING },
         makeupStyle: { type: Type.STRING },
@@ -423,6 +432,30 @@ function initializeGenAI(apiKey?: string): boolean {
 
 
 // --- UTILITY FUNCTIONS ---
+function updateRoleOptions(genderSelect: HTMLSelectElement, roleSelect: HTMLSelectElement) {
+    const selectedGender = genderSelect.value;
+    const roleOptions = roleSelect.querySelectorAll('option');
+
+    roleOptions.forEach(option => {
+        const dataGender = option.getAttribute('data-gender');
+        if (dataGender === 'neutral' || dataGender === selectedGender || !dataGender) {
+            (option as HTMLOptionElement).style.display = 'block';
+        } else {
+            (option as HTMLOptionElement).style.display = 'none';
+        }
+    });
+
+    // If current selected role is hidden, select the neutral one
+    const currentValue = roleSelect.value;
+    const currentOption = roleSelect.querySelector(`option[value="${currentValue}"]`) as HTMLOptionElement;
+    if (currentOption && currentOption.style.display === 'none') {
+        const neutralOption = roleSelect.querySelector('option[data-gender="neutral"]') as HTMLOptionElement;
+        if (neutralOption) {
+            roleSelect.value = neutralOption.value;
+        }
+    }
+}
+
 function showScreen(screenId: keyof typeof screens) {
   Object.values(screens).forEach(s => s.classList.remove('active'));
   screens[screenId].classList.add('active');
@@ -483,6 +516,8 @@ function migrateCharacter(character: Character): Character {
                 name: name,
                 age: parseInt(get('Age'), 10) || 20,
                 ethnicity: get('Ethnicity') || 'Unknown',
+                gender: 'female', // Default for legacy characters
+                race: 'human', // Default for legacy characters
                 aura: get('Aura') || 'Unknown',
                 roles: get('Role') || 'new acquaintance',
                 // Add defaults for new fields
@@ -656,7 +691,7 @@ function parseMarkdown(text: string): string {
     return safeText;
 }
 
-async function generateCharacterProfile(name: string, age: number, ethnicity: string, aura: string, role: string): Promise<CharacterProfile> {
+async function generateCharacterProfile(name: string, age: number, ethnicity: string, gender: string, race: string, aura: string, role: string): Promise<CharacterProfile> {
   if (!ai) { throw new Error("AI not initialized"); }
 
   const prompt = `You are an expert character designer for a personal, evolving visual novel chat experience. Based on the initial user input, fill out the provided JSON schema with creative, diverse, and high-quality content in ENGLISH.
@@ -669,6 +704,8 @@ async function generateCharacterProfile(name: string, age: number, ethnicity: st
   - The character's 'aura' (${aura}), 'zodiac sign', and 'role' (${role}) must deeply influence their 'personalityTraits', 'communicationStyle', 'clothingStyle', and 'overallVibe'. Create a cohesive personality.
   - "profession" MUST heavily influence their "clothingStyle" and "hobbies".
   - "backgroundStory" must be the foundation for their "fatalFlaw" and "secretDesire" in a non-obvious, compelling way.
+- **Conciseness for Physical Attributes:**
+  - Keep physical descriptions (bodyType, hairColor, hairStyle, eyeColor, skinTone, breastAndCleavage, clothingStyle, accessories, makeupStyle, overallVibe) brief and specific. Avoid verbose explanations.
 - **Language:** Fill ALL field values in English.
 - **Format:** Respond ONLY with the raw JSON object that conforms to the schema.
 
@@ -1278,6 +1315,8 @@ async function handleGenerateSheet(e: Event) {
         name: formData.get('char-name') as string,
         age: parseInt(formData.get('char-age') as string, 10),
         ethnicity: formData.get('char-ethnicity') as string,
+        gender: formData.get('char-gender') as string,
+        race: formData.get('char-race') as string,
         aura: formData.get('char-aura') as string,
         roles: formData.get('char-roles') as string,
     };
@@ -1291,7 +1330,7 @@ async function handleGenerateSheet(e: Event) {
     showLoading("Generating character profile...");
 
     try {
-        const profile = await generateCharacterProfile(charData.name, charData.age, charData.ethnicity, charData.aura, charData.roles);
+        const profile = await generateCharacterProfile(charData.name, charData.age, charData.ethnicity, charData.gender, charData.race, charData.aura, charData.roles);
         
         characterCreationPreview = {
             avatar: '',
@@ -1323,11 +1362,14 @@ async function constructAvatarPrompt(characterProfile: CharacterProfile): Promis
     const makeup = physicalStyle.makeupStyle;
     const clothing = physicalStyle.clothingStyle;
 
+    const genderPronoun = basicInfo.gender === 'male' ? 'him' : 'her';
+    const genderNoun = basicInfo.gender === 'male' ? 'man' : 'woman';
+
     const prompt = `
-An ultra-realistic, professional promotional solo portrait of her, a ${age}-year-old ${raceOrDescent} woman, looking directly at the camera with an expression that matches her '${basicInfo.aura}' aura. Shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.
-Her skin is ${physicalStyle.skinTone} with realistic texture. Her ${hair} is styled professionally. Her eyes are ${eyes}. She wears fashionable jewelry including prominent necklace, accentuating her chic style.
-Her makeup is ${makeup} style. She wears ${clothing}, ensuring a clear view of her neck and shoulders.
-Half-body composition from hips up, emphasizing her charismatic expression and confident pose, facing forward. The overall tone is cinematic and high-fashion. Studio lighting with softboxes creates perfect illumination.
+An ultra-realistic, professional promotional solo portrait of ${genderPronoun}, a ${age}-year-old ${raceOrDescent} ${genderNoun}, looking directly at the camera with an expression that matches ${genderPronoun === 'him' ? 'his' : 'her'} '${basicInfo.aura}' aura. Shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.
+${genderPronoun === 'him' ? 'His' : 'Her'} skin is ${physicalStyle.skinTone} with realistic texture. ${genderPronoun === 'him' ? 'His' : 'Her'} ${hair} is styled professionally. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are ${eyes}. ${genderPronoun === 'him' ? 'He' : 'She'} wears fashionable jewelry including prominent necklace, accentuating ${genderPronoun === 'him' ? 'his' : 'her'} chic style.
+${genderPronoun === 'him' ? 'His' : 'Her'} makeup is ${makeup} style. ${genderPronoun === 'him' ? 'He' : 'She'} wears ${clothing}, ensuring a clear view of ${genderPronoun === 'him' ? 'his' : 'her'} neck and shoulders.
+Half-body composition from hips up, emphasizing ${genderPronoun === 'him' ? 'his' : 'her'} charismatic expression and confident pose, facing forward. The overall tone is cinematic and high-fashion. Studio lighting with softboxes creates perfect illumination.
 9:16 aspect ratio. The image exhibits exceptional professional photography quality - tack-sharp focus on the eyes, creamy bokeh background, and perfect exposure balance. No digital art, no 3D rendering, pure photographic excellence.
 `.trim().replace(/\n/g, ' ').replace(/\s\s+/g, ' ');
 
@@ -1963,8 +2005,11 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
     // --- Part 4: Build the new, structured prompt ---
     const { timeDescription } = getContextualTime(new Date().toISOString(), character.timezone);
     
+    const genderPronoun = character.characterProfile.basicInfo.gender === 'male' ? 'him' : 'her';
+    const genderNoun = character.characterProfile.basicInfo.gender === 'male' ? 'man' : 'woman';
+
     const prompt = `
-A hyper-realistic documentary photograph, shot on an iPhone 16 Pro Max, 26mm wide-angle lens, cinematic 9:16 aspect ratio. A ${age}-year-old woman of ${raceOrDescent} descent, captured in a selfie moment. ${GeneralAppearance}. Her hair is ${sessionHairstyle}. Her skin shows realistic texture and subtle pores, ${skinDescription}. She is wearing ${outfitDescription}. The scene is set in ${sessionLocation} during ${timeDescription}. ${sceneDescription}. The image exhibits the natural grain, dynamic range, and slight lens distortion of a genuine smartphone photo, with absolutely no sign of digital rendering, 3D assets, or artificial art styles. 8K resolution, extreme detail, photorealistic. -- no phone visible in the frame.
+A hyper-realistic documentary photograph, shot on an iPhone 16 Pro Max, 26mm wide-angle lens, cinematic 9:16 aspect ratio. A ${age}-year-old ${genderNoun} of ${raceOrDescent} descent, captured in a selfie moment. ${GeneralAppearance}. ${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ${genderPronoun === 'him' ? 'His' : 'Her'} skin shows realistic texture and subtle pores, ${skinDescription}. ${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}. The scene is set in ${sessionLocation} during ${timeDescription}. ${sceneDescription}. The image exhibits the natural grain, dynamic range, and slight lens distortion of a genuine smartphone photo, with absolutely no sign of digital rendering, 3D assets, or artificial art styles. 8K resolution, extreme detail, photorealistic. -- no phone visible in the frame.
 `.trim().replace(/\n/g, ' ').replace(/\s\s+/g, ' ');
 
     return prompt;
@@ -2010,8 +2055,11 @@ async function constructVideoPrompt(character: Character, userPrompt: string): P
     const dialogue = await generateDialogueForVideo(character, userPrompt);
     const dialoguePromptPart = dialogue ? `She looks at the camera and says in Indonesian: "${dialogue}".` : '';
 
+    const genderPronoun = character.characterProfile.basicInfo.gender === 'male' ? 'him' : 'her';
+    const genderNoun = character.characterProfile.basicInfo.gender === 'male' ? 'man' : 'woman';
+
     // Construct the final, more detailed prompt
-    return `A hyper-realistic, documentary-style cinematic video clip, Shot on an iPhone 16 Pro Max in 9:16 aspect ratio. The subject is a ${age}-year-old woman of ${raceOrdescent} descent. Her visual characteristics are: ${visualDNA}. Her hair is ${sessionHairstyle}. She is wearing ${outfitDescription}. The setting is ${sessionLocation}. The action is: ${userPrompt}. ${dialoguePromptPart} The video has the intimate feel of a selfie video, with natural movement, realistic motion blur, and the subtle grain of real digital footage. No visual effects, CGI, or artificial animation. -- no phone visible in the frame.`.trim().replace(/\s\s+/g, ' ');
+    return `A hyper-realistic, documentary-style cinematic video clip, Shot on an iPhone 16 Pro Max in 9:16 aspect ratio. The subject is a ${age}-year-old ${genderNoun} of ${raceOrdescent} descent. ${genderPronoun === 'him' ? 'His' : 'Her'} visual characteristics are: ${visualDNA}. ${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}. The setting is ${sessionLocation}. The action is: ${userPrompt}. ${dialoguePromptPart} The video has the intimate feel of a selfie video, with natural movement, realistic motion blur, and the subtle grain of real digital footage. No visual effects, CGI, or artificial animation. -- no phone visible in the frame.`.trim().replace(/\s\s+/g, ' ');
 }
 
 
@@ -2679,6 +2727,8 @@ async function handleSaveCharacterChanges() {
             age: getNum('edit-char-age'),
             zodiac: get('edit-char-zodiac'),
             ethnicity: get('edit-char-ethnicity'),
+            gender: get('edit-char-gender'),
+            race: get('edit-char-race'),
             cityOfResidence: get('edit-char-cityOfResidence'),
             aura: get('edit-char-aura'),
             roles: get('edit-char-roles'),
@@ -2771,6 +2821,8 @@ async function handleAiRefineCharacterDetails() {
             age: getNum('edit-char-age'),
             zodiac: get('edit-char-zodiac'),
             ethnicity: get('edit-char-ethnicity'),
+            gender: get('edit-char-gender'),
+            race: get('edit-char-race'),
             cityOfResidence: get('edit-char-cityOfResidence'),
             aura: get('edit-char-aura'),
             roles: get('edit-char-roles'),
@@ -3501,6 +3553,12 @@ async function init() {
 
     // Character Creation
     createContactForm.addEventListener('submit', handleGenerateSheet);
+    const charGenderSelect = document.getElementById('char-gender') as HTMLSelectElement;
+    const charRolesSelect = document.getElementById('char-roles') as HTMLSelectElement;
+    charGenderSelect.addEventListener('change', () => updateRoleOptions(charGenderSelect, charRolesSelect));
+    // Initialize role options on load
+    updateRoleOptions(charGenderSelect, charRolesSelect);
+
     document.getElementById('reset-creation-btn')!.addEventListener('click', () => {
         if (confirm('Are you sure you want to reset the form? All generated data for this character will be lost.')) {
             resetCharacterCreation();
@@ -3632,6 +3690,11 @@ async function init() {
     // Character Editor Listeners
     characterEditorElements.footer.saveBtn.addEventListener('click', handleSaveCharacterChanges);
     characterEditorElements.footer.refineBtn.addEventListener('click', handleAiRefineCharacterDetails);
+
+    // Gender-adaptive role options
+    const editCharGenderSelect = document.getElementById('edit-char-gender') as HTMLSelectElement;
+    const editCharRolesSelect = document.getElementById('edit-char-roles') as HTMLSelectElement;
+    editCharGenderSelect.addEventListener('change', () => updateRoleOptions(editCharGenderSelect, editCharRolesSelect));
     characterEditorElements.avatarTab.changeBtn.addEventListener('click', () => {
         modals.avatarChange.style.display = 'flex';
     });
