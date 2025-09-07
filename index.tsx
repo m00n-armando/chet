@@ -3221,8 +3221,10 @@ async function init() {
     });
 
     document.getElementById('settings-btn')!.addEventListener('click', () => {
+        console.log('Settings button clicked');
         updateSettingsUI();
         modals.settings.style.display = 'flex';
+        console.log('Settings modal should be visible now');
     });
 
     document.getElementById('close-settings-btn')!.addEventListener('click', () => {
