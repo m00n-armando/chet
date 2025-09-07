@@ -416,6 +416,7 @@ function initializeGenAI(apiKey?: string): boolean {
             console.error("Error initializing GoogleGenAI:", error);
             alert("Failed to initialize Google GenAI. The API Key might be invalid.");
             localStorage.removeItem('chet_api_key');
+            modals.apiKey.style.display = 'flex';
             ai = null;
             updateSettingsUI();
             return false;
