@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
 
     return {
       define: {
-        'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY)
+        'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(env.VITE_GEMINI_API_KEY || env.GEMINI_API_KEY || '')
       },
       resolve: {
         alias: {
@@ -21,24 +21,24 @@ export default defineConfig(({ mode }) => {
             drop_console: true,
             drop_debugger: true,
             pure_funcs: ['console.log', 'console.info', 'console.debug'],
-            passes: 3, // Multiple passes for better compression
-            unsafe: true,
-            unsafe_comps: true,
-            unsafe_Function: true,
-            unsafe_math: true,
-            unsafe_symbols: true,
-            unsafe_methods: true,
-            unsafe_proto: true,
-            unsafe_regexp: true,
-            unsafe_undefined: true
+            passes: 2, // Reduced passes for safer compression
+            unsafe: false, // Disable unsafe optimizations
+            unsafe_comps: false,
+            unsafe_Function: false,
+            unsafe_math: false,
+            unsafe_symbols: false,
+            unsafe_methods: false,
+            unsafe_proto: false,
+            unsafe_regexp: false,
+            unsafe_undefined: false
           },
           mangle: {
             properties: {
               regex: /^_[A-Za-z]/,
-              keep_quoted: false,
-              reserved: ['ai', 'characters', 'userProfile'] // Keep important global variables
+              keep_quoted: true, // Keep quoted properties safe
+              reserved: ['ai', 'characters', 'userProfile', 'VITE_GEMINI_API_KEY', 'import', 'meta', 'env'] // Reserve critical properties
             },
-            toplevel: true,
+            toplevel: false, // Disable toplevel mangling for safety
             safari10: true
           },
           format: {
