@@ -415,6 +415,9 @@ select option {
 }
 
 /* Fix editor form select dropdown styling */
+.editor-form select {
+    background-color: var(--surface-color);
+}
 .editor-form select option {
     background-color: var(--surface-color);
     color: var(--text-color);

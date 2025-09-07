@@ -4,13 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ---CHET v.2.0.0---
-// Changelog v.2.0.0:
-// - Added gender and race selection options for character creation and editing.
-// - Gender-adaptive roles: step sister/brother, girlfriend/boyfriend, etc.
-// - Improved physical attribute descriptions to be more concise and specific.
-// - Fixed dropdown styling issues in character editor.
-// - Enhanced character generation prompts for better quality output.
+// ---CHET v.2.0.1---
+// Changelog v.2.0.1:
+// - Fixed dropdown styling in edit profile and change avatar sections.
+// - Improved avatar prompt generation to include race information when applicable.
+// - Updated version to 2.0.1 for deployment.
 
 import { GoogleGenAI, Type, Chat, HarmBlockThreshold, HarmCategory, GenerateContentResponse, Modality, Part } from "@google/genai";
 import { saveAppState, loadAppState, blobToBase64, base64ToBlob } from './storageServices';
@@ -1365,10 +1363,12 @@ async function constructAvatarPrompt(characterProfile: CharacterProfile): Promis
     const genderPronoun = basicInfo.gender === 'male' ? 'him' : 'her';
     const genderNoun = basicInfo.gender === 'male' ? 'man' : 'woman';
 
+    const raceDescription = basicInfo.race && basicInfo.race.toLowerCase() !== 'human' ? ` ${genderPronoun === 'him' ? 'His' : 'Her'} race is ${basicInfo.race}.` : '';
+
     const prompt = `
 An ultra-realistic, professional promotional solo portrait of ${genderPronoun}, a ${age}-year-old ${raceOrDescent} ${genderNoun}, looking directly at the camera with an expression that matches ${genderPronoun === 'him' ? 'his' : 'her'} '${basicInfo.aura}' aura. Shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.
 ${genderPronoun === 'him' ? 'His' : 'Her'} skin is ${physicalStyle.skinTone} with realistic texture. ${genderPronoun === 'him' ? 'His' : 'Her'} ${hair} is styled professionally. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are ${eyes}. ${genderPronoun === 'him' ? 'He' : 'She'} wears fashionable jewelry including prominent necklace, accentuating ${genderPronoun === 'him' ? 'his' : 'her'} chic style.
-${genderPronoun === 'him' ? 'His' : 'Her'} makeup is ${makeup} style. ${genderPronoun === 'him' ? 'He' : 'She'} wears ${clothing}, ensuring a clear view of ${genderPronoun === 'him' ? 'his' : 'her'} neck and shoulders.
+${genderPronoun === 'him' ? 'His' : 'Her'} makeup is ${makeup} style. ${genderPronoun === 'him' ? 'He' : 'She'} wears ${clothing}, ensuring a clear view of ${genderPronoun === 'him' ? 'his' : 'her'} neck and shoulders.${raceDescription}
 Half-body composition from hips up, emphasizing ${genderPronoun === 'him' ? 'his' : 'her'} charismatic expression and confident pose, facing forward. The overall tone is cinematic and high-fashion. Studio lighting with softboxes creates perfect illumination.
 9:16 aspect ratio. The image exhibits exceptional professional photography quality - tack-sharp focus on the eyes, creamy bokeh background, and perfect exposure balance. No digital art, no 3D rendering, pure photographic excellence.
 `.trim().replace(/\n/g, ' ').replace(/\s\s+/g, ' ');
