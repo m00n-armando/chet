@@ -1,11 +1,36 @@
 [build]
   command = "npm run build"
   publish = "dist"
+  ignore = "git log -1 --pretty=%B | grep -q 'deploy skip'"
 
 [build.environment]
   NODE_VERSION = "18"
+  NPM_VERSION = "9"
+
+[build.processing]
+  skip_processing = false
+
+[build.processing.css]
+  bundle = true
+  minify = true
+
+[build.processing.js]
+  bundle = true
+  minify = true
+
+[build.processing.html]
+  pretty_urls = true
+
+[dev]
+  command = "npm run dev"
+  port = 5173
+  publish = "dist"
+  functions = "netlify/functions"
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+[functions]
+  directory = "netlify/functions"
