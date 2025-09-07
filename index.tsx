@@ -308,7 +308,6 @@ const modals = {
     referenceGallery: document.getElementById('reference-gallery-modal')!,
     avatarChange: document.getElementById('avatar-change-modal')!,
     promptRefine: document.getElementById('prompt-refine-modal')!,
-    changelog: document.getElementById('changelog-modal')!,
 };
 const loadingText = document.getElementById('loading-text')!;
 const contactList = document.getElementById('contact-list')!;
@@ -3633,13 +3632,6 @@ async function init() {
         modals.userProfile.style.display = 'flex';
     }
 
-    // Show changelog if version updated
-    const lastVersion = localStorage.getItem('chet_last_version');
-    if (lastVersion !== '2.0.5') {
-        modals.changelog.style.display = 'flex';
-        localStorage.setItem('chet_last_version', '2.0.5');
-    }
-
     // Setup event listeners
     document.querySelectorAll('.back-btn:not(#screen-edit-character .back-btn)').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -3671,9 +3663,8 @@ async function init() {
     });
 
     userProfileDisplay.addEventListener('click', () => {
-        modals.userProfile.style.display = 'flex';
-        if (userProfile) {
-            (document.getElementById('user-name') as HTMLInputElement).value = userProfile.name;
+        if (!userProfile) {
+            modals.userProfile.style.display = 'flex';
         }
     });
     userProfileForm.addEventListener('submit', handleUserProfileSubmit);
@@ -3697,9 +3688,6 @@ async function init() {
         modals.settings.style.display = 'none';
     });
 
-    document.getElementById('close-changelog-btn')!.addEventListener('click', () => {
-        modals.changelog.style.display = 'none';
-    });
 
     document.getElementById('clear-api-key-btn')!.addEventListener('click', () => {
         if (confirm("Are you sure you want to clear your API Key? You will be logged out.")) {
