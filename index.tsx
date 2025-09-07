@@ -1370,8 +1370,44 @@ async function constructAvatarPrompt(characterProfile: CharacterProfile): Promis
     const genderNoun = basicInfo.gender === 'male' ? 'man' : 'woman';
 
     const isFantasyRace = basicInfo.race && basicInfo.race.toLowerCase() !== 'human';
-    const fantasyNote = isFantasyRace ? ` In a parallel fantasy world where various supernatural races like ${basicInfo.race.toLowerCase()}s exist alongside humans,` : '';
-    const raceDescription = isFantasyRace ? ` ${genderPronoun === 'him' ? 'His' : 'Her'} race is ${basicInfo.race}.` : '';
+    const fantasyNote = isFantasyRace ? ` In a parallel sci-fi universe where advanced genetic modifications and supernatural abilities exist alongside normal humans,` : '';
+
+    // Enhanced race descriptions with visual characteristics for realistic sci-fi portrayal
+    let raceDescription = '';
+    if (isFantasyRace) {
+        const race = basicInfo.race.toLowerCase();
+        switch (race) {
+            case 'vampire':
+                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has an aristocratic bearing with exceptionally pale, flawless skin that seems almost luminescent. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes have an intense, piercing quality with subtle crimson undertones. Sharp, elegant facial features give ${genderPronoun} an otherworldly, timeless beauty.`;
+                break;
+            case 'demon':
+                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} possesses striking, angular features with skin that has a subtle iridescent quality. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes have a deep, mysterious intensity that seems to hold ancient wisdom. There's an aura of controlled power and supernatural grace about ${genderPronoun}.`;
+                break;
+            case 'angel':
+                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has ethereally beautiful features with skin that glows with an inner light. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are strikingly clear and luminous, radiating compassion and strength. There's a serene, otherworldly elegance to ${genderPronoun === 'him' ? 'his' : 'her'} presence.`;
+                break;
+            case 'elf':
+                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has elongated, graceful features with exceptionally smooth, youthful skin. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are large and expressive with an almost hypnotic clarity. There's an elegant, timeless quality to ${genderPronoun === 'him' ? 'his' : 'her'} appearance that suggests ancient wisdom.`;
+                break;
+            case 'orc':
+                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has strong, rugged features with tough, weathered skin that speaks of resilience. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are sharp and intelligent, showing deep determination. There's a powerful, imposing presence about ${genderPronoun} that commands respect.`;
+                break;
+            case 'fairy':
+                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has delicate, finely sculpted features with skin that has a subtle, pearlescent sheen. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are large and enchanting with an otherworldly sparkle. There's a graceful, magical quality to ${genderPronoun === 'him' ? 'his' : 'her'} appearance.`;
+                break;
+            case 'werewolf':
+                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has strong, athletic features with skin that has a healthy, rugged vitality. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes have a wild, intense quality that suggests hidden depths. There's a primal, powerful energy about ${genderPronoun} that speaks of untamed strength.`;
+                break;
+            case 'ghost':
+                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has ethereal, almost translucent features with skin that has a pale, otherworldly quality. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes have a haunting, distant gaze that seems to look beyond the physical world. There's a mysterious, spectral elegance about ${genderPronoun}.`;
+                break;
+            case 'beast human':
+                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has striking hybrid features that blend human and animal characteristics seamlessly. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes have an animal-like intensity and intelligence. There's a wild, untamed beauty about ${genderPronoun} that suggests enhanced physical abilities.`;
+                break;
+            default:
+                raceDescription = ` ${genderPronoun === 'him' ? 'His' : 'Her'} race is ${basicInfo.race}, giving ${genderPronoun} unique supernatural characteristics.`;
+        }
+    }
 
     const prompt = `
 An ultra-realistic, professional promotional solo portrait of ${genderPronoun}, a ${age}-year-old ${raceOrDescent} ${genderNoun},${fantasyNote} looking directly at the camera with an expression that matches ${genderPronoun === 'him' ? 'his' : 'her'} '${basicInfo.aura}' aura. Shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.
@@ -2000,14 +2036,49 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
     // --- Part 2: Session Context (Location & Hairstyle) ---
     const sessionLocation = basicInfo.cityOfResidence;
     const sessionHairstyle = await translateTextToEnglish(`${physicalStyle.hairColor} ${physicalStyle.hairStyle}`);
-        
+
     activeCharacterSessionContext = {
         ...activeCharacterSessionContext,
         hairstyle: sessionHairstyle,
         timestamp: now
     };
-    
-    // --- Part 3: Generate Dynamic Outfit ---
+
+    // --- Part 3: Race Visual Characteristics ---
+    let raceVisualDescription = '';
+    if (basicInfo.race && basicInfo.race.toLowerCase() !== 'human') {
+        const race = basicInfo.race.toLowerCase();
+        switch (race) {
+            case 'vampire':
+                raceVisualDescription = ' aristocratic bearing, exceptionally pale flawless skin, intense piercing eyes with crimson undertones, sharp elegant facial features, timeless beauty';
+                break;
+            case 'demon':
+                raceVisualDescription = ' striking angular features, subtle iridescent skin quality, deep mysterious intense eyes, aura of controlled power, supernatural grace';
+                break;
+            case 'angel':
+                raceVisualDescription = ' ethereally beautiful features, skin glowing with inner light, strikingly clear luminous eyes, serene otherworldly elegance';
+                break;
+            case 'elf':
+                raceVisualDescription = ' elongated graceful features, exceptionally smooth youthful skin, large expressive hypnotic eyes, elegant timeless quality';
+                break;
+            case 'orc':
+                raceVisualDescription = ' strong rugged features, tough weathered resilient skin, sharp intelligent eyes, powerful imposing presence';
+                break;
+            case 'fairy':
+                raceVisualDescription = ' delicate finely sculpted features, subtle pearlescent skin sheen, large enchanting sparkling eyes, graceful magical quality';
+                break;
+            case 'werewolf':
+                raceVisualDescription = ' strong athletic features, healthy rugged vitality in skin, wild intense eyes, primal powerful energy';
+                break;
+            case 'ghost':
+                raceVisualDescription = ' ethereal almost translucent features, pale otherworldly skin quality, haunting distant gaze, mysterious spectral elegance';
+                break;
+            case 'beast human':
+                raceVisualDescription = ' striking hybrid features blending human and animal, animal-like intense intelligent eyes, wild untamed beauty';
+                break;
+        }
+    }
+
+    // --- Part 4: Generate Dynamic Outfit ---
     const outfitDescription = await generateOutfitDescription(character, sessionLocation, sceneDescription);
 
     // --- Part 4: Build the new, structured prompt ---
@@ -2017,7 +2088,7 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
     const genderNoun = character.characterProfile.basicInfo.gender === 'male' ? 'man' : 'woman';
 
     const prompt = `
-A hyper-realistic documentary photograph, shot on an iPhone 16 Pro Max, 26mm wide-angle lens, cinematic 9:16 aspect ratio. A ${age}-year-old ${genderNoun} of ${raceOrDescent} descent, captured in a selfie moment. ${GeneralAppearance}. ${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ${genderPronoun === 'him' ? 'His' : 'Her'} skin shows realistic texture and subtle pores, ${skinDescription}. ${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}. The scene is set in ${sessionLocation} during ${timeDescription}. ${sceneDescription}. The image exhibits the natural grain, dynamic range, and slight lens distortion of a genuine smartphone photo, with absolutely no sign of digital rendering, 3D assets, or artificial art styles. 8K resolution, extreme detail, photorealistic. -- no phone visible in the frame.
+A hyper-realistic documentary photograph, shot on an iPhone 16 Pro Max, 26mm wide-angle lens, cinematic 9:16 aspect ratio. A ${age}-year-old ${genderNoun} of ${raceOrDescent} descent${raceVisualDescription}, captured in a selfie moment. ${GeneralAppearance}. ${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ${genderPronoun === 'him' ? 'His' : 'Her'} skin shows realistic texture and subtle pores, ${skinDescription}. ${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}. The scene is set in ${sessionLocation} during ${timeDescription}. ${sceneDescription}. The image exhibits the natural grain, dynamic range, and slight lens distortion of a genuine smartphone photo, with absolutely no sign of digital rendering, 3D assets, or artificial art styles. 8K resolution, extreme detail, photorealistic. -- no phone visible in the frame.
 `.trim().replace(/\n/g, ' ').replace(/\s\s+/g, ' ');
 
     return prompt;
@@ -2053,12 +2124,47 @@ async function constructVideoPrompt(character: Character, userPrompt: string): P
     const sessionLocation = basicInfo.cityOfResidence;
     const sessionHairstyle = await translateTextToEnglish(`${physicalStyle.hairColor} ${physicalStyle.hairStyle}`);
 
+    // --- Race Visual Characteristics ---
+    let raceVisualDescription = '';
+    if (basicInfo.race && basicInfo.race.toLowerCase() !== 'human') {
+        const race = basicInfo.race.toLowerCase();
+        switch (race) {
+            case 'vampire':
+                raceVisualDescription = ' with aristocratic bearing, exceptionally pale flawless skin, intense piercing eyes with crimson undertones, sharp elegant facial features, timeless beauty';
+                break;
+            case 'demon':
+                raceVisualDescription = ' with striking angular features, subtle iridescent skin quality, deep mysterious intense eyes, aura of controlled power, supernatural grace';
+                break;
+            case 'angel':
+                raceVisualDescription = ' with ethereally beautiful features, skin glowing with inner light, strikingly clear luminous eyes, serene otherworldly elegance';
+                break;
+            case 'elf':
+                raceVisualDescription = ' with elongated graceful features, exceptionally smooth youthful skin, large expressive hypnotic eyes, elegant timeless quality';
+                break;
+            case 'orc':
+                raceVisualDescription = ' with strong rugged features, tough weathered resilient skin, sharp intelligent eyes, powerful imposing presence';
+                break;
+            case 'fairy':
+                raceVisualDescription = ' with delicate finely sculpted features, subtle pearlescent skin sheen, large enchanting sparkling eyes, graceful magical quality';
+                break;
+            case 'werewolf':
+                raceVisualDescription = ' with strong athletic features, healthy rugged vitality in skin, wild intense eyes, primal powerful energy';
+                break;
+            case 'ghost':
+                raceVisualDescription = ' with ethereal almost translucent features, pale otherworldly skin quality, haunting distant gaze, mysterious spectral elegance';
+                break;
+            case 'beast human':
+                raceVisualDescription = ' with striking hybrid features blending human and animal, animal-like intense intelligent eyes, wild untamed beauty';
+                break;
+        }
+    }
+
     // --- Generate Dynamic Outfit ---
     const outfitDescription = await generateOutfitDescription(character, sessionLocation, userPrompt);
-    
+
     const raceOrdescent = await translateTextToEnglish(basicInfo.ethnicity);
     const age = basicInfo.age;
-    
+
     // Generate specific dialogue for the video
     const dialogue = await generateDialogueForVideo(character, userPrompt);
     const dialoguePromptPart = dialogue ? `She looks at the camera and says in Indonesian: "${dialogue}".` : '';
@@ -2067,7 +2173,7 @@ async function constructVideoPrompt(character: Character, userPrompt: string): P
     const genderNoun = character.characterProfile.basicInfo.gender === 'male' ? 'man' : 'woman';
 
     // Construct the final, more detailed prompt
-    return `A hyper-realistic, documentary-style cinematic video clip, Shot on an iPhone 16 Pro Max in 9:16 aspect ratio. The subject is a ${age}-year-old ${genderNoun} of ${raceOrdescent} descent. ${genderPronoun === 'him' ? 'His' : 'Her'} visual characteristics are: ${visualDNA}. ${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}. The setting is ${sessionLocation}. The action is: ${userPrompt}. ${dialoguePromptPart} The video has the intimate feel of a selfie video, with natural movement, realistic motion blur, and the subtle grain of real digital footage. No visual effects, CGI, or artificial animation. -- no phone visible in the frame.`.trim().replace(/\s\s+/g, ' ');
+    return `A hyper-realistic, documentary-style cinematic video clip, Shot on an iPhone 16 Pro Max in 9:16 aspect ratio. The subject is a ${age}-year-old ${genderNoun} of ${raceOrdescent} descent${raceVisualDescription}. ${genderPronoun === 'him' ? 'His' : 'Her'} visual characteristics are: ${visualDNA}. ${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}. The setting is ${sessionLocation}. The action is: ${userPrompt}. ${dialoguePromptPart} The video has the intimate feel of a selfie video, with natural movement, realistic motion blur, and the subtle grain of real digital footage. No visual effects, CGI, or artificial animation. -- no phone visible in the frame.`.trim().replace(/\s\s+/g, ' ');
 }
 
 
