@@ -393,7 +393,7 @@ const intimacyToggle = document.getElementById('intimacy-toggle')! as HTMLInputE
 
 // --- API INITIALIZATION ---
 function initializeGenAI(apiKey?: string): boolean {
-    const key = apiKey || localStorage.getItem('chet_api_key');
+    const key = apiKey || ((import.meta as any).env?.VITE_GEMINI_API_KEY as string) || localStorage.getItem('chet_api_key');
 
     if (key) {
         try {

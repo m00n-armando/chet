@@ -7,6 +7,8 @@
   NODE_VERSION = "18"
   NPM_VERSION = "9"
   NETLIFY_NEXT_PLUGIN_SKIP = "true"
+  # Set VITE_GEMINI_API_KEY in Netlify dashboard for Google GenAI API key
+  # This will be available in the client-side app
 
 [build.processing]
   skip_processing = false
