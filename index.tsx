@@ -3663,8 +3663,9 @@ async function init() {
     });
 
     userProfileDisplay.addEventListener('click', () => {
-        if (!userProfile) {
-            modals.userProfile.style.display = 'flex';
+        modals.userProfile.style.display = 'flex';
+        if (userProfile) {
+            (document.getElementById('user-name') as HTMLInputElement).value = userProfile.name;
         }
     });
     userProfileForm.addEventListener('submit', handleUserProfileSubmit);
