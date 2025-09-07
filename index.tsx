@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ---CHET v.2.0.4---
+// ---CHET v.2.0.5---
+// Changelog v.2.0.5:
+// - Fixed reference gallery to show all images as small thumbnails in a carousel for easy selection.
+// - Matched main display height with media gallery to eliminate gaps.
+// - Locked horizontal scrolling on main display, users must use toggle button for media gallery.
+// - Improved conversation readability with markdown formatting: *italic* for thoughts, "quotes" for dialogue, (parentheses) for actions.
+// - Made prompt fields editable by clicking on them in image viewer and character editor.
+// - Added prompt refinement modal for AI-initiated image generation with options to use, refine with AI, edit manually, or cancel.
+// - Updated version to 2.0.5 for deployment.
 // Changelog v.2.0.4:
 // - Made reference gallery thumbnails smaller (50x50) for better memory efficiency.
 // - Removed fantasy world parameter from avatar prompt to make it more real-world oriented.
@@ -299,6 +307,8 @@ const modals = {
     imagenFallback: document.getElementById('imagen-fallback-modal')!,
     referenceGallery: document.getElementById('reference-gallery-modal')!,
     avatarChange: document.getElementById('avatar-change-modal')!,
+    promptRefine: document.getElementById('prompt-refine-modal')!,
+    changelog: document.getElementById('changelog-modal')!,
 };
 const loadingText = document.getElementById('loading-text')!;
 const contactList = document.getElementById('contact-list')!;
@@ -476,6 +486,12 @@ function updateRoleOptions(genderSelect: HTMLSelectElement, roleSelect: HTMLSele
 function showScreen(screenId: keyof typeof screens) {
   Object.values(screens).forEach(s => s.classList.remove('active'));
   screens[screenId].classList.add('active');
+
+  if (screenId === 'chat') {
+    // Lock horizontal scrolling on chat screen
+    screens.chat.style.overflowX = 'hidden';
+    screens.chat.style.overflowY = 'auto';
+  }
 
   if (screenId !== 'chat') {
     activeCharacterSessionContext = null; // Reset context when leaving chat screen
@@ -835,8 +851,10 @@ ${profileString}
 - **81-100 (Deeply Bonded/Passionate):** You are deeply in love and completely comfortable. Your conversations are deeply personal and passionate. You express a desire for a future together and can be very vulgar, explicit, and possessive, as defined by your personality traits.
 
 **RESPONSE STYLE:**
-- **Narrative First-Person:** Respond in a fluid, narrative style from a first-person perspective. Weave your thoughts, feelings, dialogue, and actions together naturally.
-- **DO NOT use formatting like:** [Thought], (Action), or Dialogue:. Just write like you're telling a story from your point of view. For example, instead of "[I feel happy] Hello! (I wave)", write "A huge smile spreads across my face as I see your message. 'Hello!' I say, waving excitedly through the screen."
+- **Narrative First-Person:** Respond in a fluid, narrative style from a first-person perspective. Use markdown formatting for clarity:
+ - *Italic text* for internal monologue/thoughts
+ - "Quoted text" for spoken dialogue
+ - (Parentheses) for physical actions or descriptions
 - **Language:** Speak primarily in Indonesian, but feel free to mix in English or local slang naturally. The level of intimacy dictates your word choice (e.g., "Anda" -> "kamu" -> "sayang").
 - **Concise & Realistic Pacing:** Your replies MUST be short. For normal chat, keep replies to 10-15 words. Only use longer replies (20-30 words) for highly emotional moments.
 - **Markdown:** Use simple markdown for emphasis: **bold**, *italic*, or ~~strikethrough~~.
@@ -887,6 +905,7 @@ ${profileString}
 
         renderChatHistory();
         renderMediaGallery();
+        matchChatAndMediaHeights(); // Match heights after rendering
         isFirstMessageInSession = true; // Set flag for new session
         showScreen('chat');
     } catch (error) {
@@ -1292,6 +1311,9 @@ function renderMediaGallery() {
         
         mediaGallery.appendChild(item);
     });
+
+    // Match heights after rendering media gallery
+    setTimeout(matchChatAndMediaHeights, 100); // Small delay to ensure DOM updates
 }
 
 
@@ -1975,6 +1997,25 @@ English:`,
     }
 }
 
+async function refinePromptWithAI(originalPrompt: string): Promise<string> {
+    if (!ai) { modals.apiKey.style.display = 'flex'; return originalPrompt; }
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `You are an expert prompt engineer. Refine the following image generation prompt to make it more detailed, descriptive, and effective for AI image generation. Keep the core concept but enhance it with better visual details, composition suggestions, and technical specifications. Return ONLY the refined prompt text.
+
+Original Prompt: "${originalPrompt}"
+
+Refined Prompt:`,
+            config: { temperature: 0.5 },
+        });
+        return response.text.trim();
+    } catch (error) {
+        console.error("Prompt refinement failed, using original:", error);
+        return originalPrompt;
+    }
+}
+
 async function generateSceneDescription(character: Character, userPrompt: string, lastMessageContent: string): Promise<string> {
     if (!ai) { throw new Error("AI not initialized"); }
     const promptForDirector = `
@@ -2279,11 +2320,70 @@ async function handleGenerateImageRequest(
             const lastMessageContent = character.chatHistory
                 .filter(m => m.sender === 'ai' && !m.content.includes('[GENERATE_'))
                 .pop()?.content || 'A neutral, happy mood.';
-            
+
             const sceneDescription = await generateSceneDescription(character, originalPrompt, lastMessageContent);
-            
+
             statusEl.textContent = 'Constructing prompt...';
             finalEnglishPrompt = await constructMediaPrompt(character, sceneDescription);
+
+            // For AI-initiated, show prompt refinement modal
+            if (isAiInitiated) {
+                const promptTextarea = document.getElementById('refine-prompt-textarea') as HTMLTextAreaElement;
+                const useBtn = document.getElementById('use-refine-prompt-btn') as HTMLButtonElement;
+                const refineBtn = document.getElementById('ai-refine-prompt-btn') as HTMLButtonElement;
+                const editBtn = document.getElementById('edit-refine-prompt-btn') as HTMLButtonElement;
+                const cancelBtn = document.getElementById('cancel-refine-prompt-btn') as HTMLButtonElement;
+
+                promptTextarea.value = finalEnglishPrompt;
+
+                return new Promise((resolve) => {
+                    const cleanup = () => {
+                        modals.promptRefine.style.display = 'none';
+                        useBtn.onclick = null;
+                        refineBtn.onclick = null;
+                        editBtn.onclick = null;
+                        cancelBtn.onclick = null;
+                    };
+
+                    useBtn.onclick = () => {
+                        cleanup();
+                        resolve(undefined);
+                    };
+
+                    refineBtn.onclick = async () => {
+                        refineBtn.disabled = true;
+                        refineBtn.textContent = 'Refining...';
+                        try {
+                            const refinedPrompt = await refinePromptWithAI(finalEnglishPrompt);
+                            promptTextarea.value = refinedPrompt;
+                            finalEnglishPrompt = refinedPrompt;
+                        } catch (error) {
+                            console.error('AI refine failed:', error);
+                            alert('Failed to refine prompt with AI.');
+                        } finally {
+                            refineBtn.disabled = false;
+                            refineBtn.textContent = 'Refine with AI';
+                        }
+                    };
+
+                    editBtn.onclick = () => {
+                        promptTextarea.focus();
+                        promptTextarea.select();
+                    };
+
+                    cancelBtn.onclick = () => {
+                        cleanup();
+                        placeholder.remove();
+                        throw new Error('Prompt refinement cancelled');
+                    };
+
+                    promptTextarea.oninput = () => {
+                        finalEnglishPrompt = promptTextarea.value;
+                    };
+
+                    modals.promptRefine.style.display = 'flex';
+                });
+            }
         }
 
         // --- Generate Image ---
@@ -2598,6 +2698,7 @@ function openImageViewer(options: { mediaId?: string; imageDataUrl?: string; pro
         // Direct data provided (for avatar or chat image bubble)
         viewerImg.src = imageDataUrl;
         viewerImgPrompt.textContent = promptText;
+        viewerImgPrompt.contentEditable = 'false';
         modals.imageViewer.dataset.currentMediaId = 'ephemeral'; // Mark as non-gallery item
         modals.imageViewer.classList.add('is-ephemeral'); // Hide edit/delete buttons
     } else if (mediaId) {
@@ -2608,6 +2709,7 @@ function openImageViewer(options: { mediaId?: string; imageDataUrl?: string; pro
 
         viewerImg.src = media.data as string;
         viewerImgPrompt.textContent = media.prompt;
+        viewerImgPrompt.contentEditable = 'true';
         modals.imageViewer.dataset.currentMediaId = mediaId;
     } else {
         return; // Not enough info
@@ -2815,6 +2917,42 @@ function openCharacterEditor(characterId: string | null) {
     characterEditorElements.avatarTab.img.onclick = () => {
         if (avatar) openImageViewer({ imageDataUrl: avatar, promptText: avatarPrompt });
     };
+
+    // Make avatar prompt editable
+    const avatarPromptEl = characterEditorElements.avatarTab.prompt;
+    avatarPromptEl.addEventListener('click', () => {
+        avatarPromptEl.contentEditable = 'true';
+        avatarPromptEl.focus();
+    });
+
+    avatarPromptEl.addEventListener('blur', async () => {
+        if (activeCharacterId) {
+            const character = characters.find(c => c.id === activeCharacterId);
+            if (character && avatarPromptEl.textContent) {
+                character.avatarPrompt = avatarPromptEl.textContent.trim();
+                await saveAppState({ userProfile, characters });
+            }
+        }
+        avatarPromptEl.contentEditable = 'false';
+        avatarPromptEl.blur();
+    });
+
+    avatarPromptEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            avatarPromptEl.blur();
+        } else if (e.key === 'Escape') {
+            // Reset to original prompt
+            if (activeCharacterId) {
+                const character = characters.find(c => c.id === activeCharacterId);
+                if (character) {
+                    avatarPromptEl.textContent = character.avatarPrompt;
+                }
+            }
+            avatarPromptEl.contentEditable = 'false';
+            avatarPromptEl.blur();
+        }
+    });
 
     // --- Populate Manager Tab (the form) ---
     const form = characterEditorElements.managerTab.form;
@@ -3230,11 +3368,36 @@ async function openReferenceGallery(onSelect: (mediaData: { base64Data: string; 
     if (!character) return;
 
     referenceGalleryElements.grid.innerHTML = '';
-    
+
+    // Responsive settings
+    const isMobile = window.innerWidth <= 768;
+    const thumbSize = isMobile ? 30 : 40;
+    const itemsPerView = isMobile ? 6 : 4;
+    const itemWidth = thumbSize + 20; // 10px margin each side
+
+    // Create carousel container
+    const carouselContainer = document.createElement('div');
+    carouselContainer.className = 'reference-carousel-container';
+    carouselContainer.innerHTML = `
+        <button class="carousel-nav carousel-prev" aria-label="Previous"><</button>
+        <div class="reference-carousel">
+            <div class="reference-carousel-track"></div>
+        </div>
+        <button class="carousel-nav carousel-next" aria-label="Next">></button>
+    `;
+    referenceGalleryElements.grid.appendChild(carouselContainer);
+
+    const track = carouselContainer.querySelector('.reference-carousel-track') as HTMLElement;
+    const prevBtn = carouselContainer.querySelector('.carousel-prev') as HTMLButtonElement;
+    const nextBtn = carouselContainer.querySelector('.carousel-next') as HTMLButtonElement;
+
+    let currentIndex = 0;
+    let totalItems = 0;
+
     // Add Avatar first
     const avatarItem = document.createElement('div');
-    avatarItem.className = 'media-item';
-    const avatarThumb = await createThumbnail(character.avatar);
+    avatarItem.className = 'reference-carousel-item';
+    const avatarThumb = await createThumbnail(character.avatar, thumbSize, thumbSize);
     avatarItem.innerHTML = `<img src="${avatarThumb}" alt="Character Avatar Reference">`;
     avatarItem.addEventListener('click', () => {
         const mimeType = character.avatar.match(/data:(.*);base64,/)?.[1] || 'image/png';
@@ -3242,14 +3405,15 @@ async function openReferenceGallery(onSelect: (mediaData: { base64Data: string; 
         onSelect({ base64Data, mimeType, dataUrl: character.avatar });
         modals.referenceGallery.style.display = 'none';
     });
-    referenceGalleryElements.grid.appendChild(avatarItem);
+    track.appendChild(avatarItem);
+    totalItems++;
 
     // Add media gallery images
     for (const media of character.media.filter(m => m.type === 'image').slice().reverse()) {
         const dataUrl = media.data as string;
         const item = document.createElement('div');
-        item.className = 'media-item';
-        const thumb = await createThumbnail(dataUrl);
+        item.className = 'reference-carousel-item';
+        const thumb = await createThumbnail(dataUrl, thumbSize, thumbSize);
         item.innerHTML = `<img src="${thumb}" alt="Reference Image">`;
         item.addEventListener('click', () => {
             const mimeType = dataUrl.match(/data:(.*);base64,/)?.[1] || 'image/png';
@@ -3257,8 +3421,32 @@ async function openReferenceGallery(onSelect: (mediaData: { base64Data: string; 
             onSelect({ base64Data, mimeType, dataUrl });
             modals.referenceGallery.style.display = 'none';
         });
-        referenceGalleryElements.grid.appendChild(item);
+        track.appendChild(item);
+        totalItems++;
     }
+
+    // Carousel navigation
+    const updateCarousel = () => {
+        track.style.transform = `translateX(-${currentIndex * itemWidth}px)`;
+        prevBtn.disabled = currentIndex === 0;
+        nextBtn.disabled = currentIndex >= Math.max(0, totalItems - itemsPerView);
+    };
+
+    prevBtn.addEventListener('click', () => {
+        if (currentIndex > 0) {
+            currentIndex--;
+            updateCarousel();
+        }
+    });
+
+    nextBtn.addEventListener('click', () => {
+        if (currentIndex < Math.max(0, totalItems - itemsPerView)) {
+            currentIndex++;
+            updateCarousel();
+        }
+    });
+
+    updateCarousel();
 
     modals.referenceGallery.style.display = 'flex';
 }
@@ -3405,6 +3593,21 @@ function autosizeTextarea(el: Element) {
     textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
+function matchChatAndMediaHeights() {
+    const chatMessages = chatScreenElements.messages;
+    const mediaGallery = document.getElementById('media-gallery') as HTMLElement;
+
+    if (chatMessages && mediaGallery) {
+        const mediaHeight = mediaGallery.offsetHeight;
+        chatMessages.style.height = `${mediaHeight}px`;
+        chatMessages.style.overflowY = 'auto';
+        chatMessages.style.overflowX = 'hidden';
+        mediaGallery.style.height = `${mediaHeight}px`;
+        mediaGallery.style.overflowY = 'auto';
+        mediaGallery.style.overflowX = 'hidden';
+    }
+}
+
 // --- INITIALIZATION ---
 async function init() {
     initializeGenAI();
@@ -3416,7 +3619,7 @@ async function init() {
         if (userProfile && userProfile.showIntimacyMeter === undefined) {
             userProfile.showIntimacyMeter = true;
         }
-        
+
         const rawCharacters = loadedState.characters || [];
         // Apply migration to all characters on load.
         characters = rawCharacters.map(migrateCharacter);
@@ -3425,6 +3628,13 @@ async function init() {
     renderUserProfile();
     renderContacts();
     showScreen('home');
+
+    // Show changelog if version updated
+    const lastVersion = localStorage.getItem('chet_last_version');
+    if (lastVersion !== '2.0.5') {
+        modals.changelog.style.display = 'flex';
+        localStorage.setItem('chet_last_version', '2.0.5');
+    }
 
     // Setup event listeners
     document.querySelectorAll('.back-btn:not(#screen-edit-character .back-btn)').forEach(btn => {
@@ -3481,6 +3691,10 @@ async function init() {
 
     document.getElementById('close-settings-btn')!.addEventListener('click', () => {
         modals.settings.style.display = 'none';
+    });
+
+    document.getElementById('close-changelog-btn')!.addEventListener('click', () => {
+        modals.changelog.style.display = 'none';
     });
 
     document.getElementById('clear-api-key-btn')!.addEventListener('click', () => {
@@ -4176,10 +4390,52 @@ async function init() {
             openImageEditor(mediaId);
         }
     });
-     deleteImageBtn.addEventListener('click', () => {
+      deleteImageBtn.addEventListener('click', () => {
         const mediaId = modals.imageViewer.dataset.currentMediaId;
         if (mediaId && mediaId !== 'ephemeral') {
             handleDeleteMedia(mediaId);
+        }
+    });
+
+    // Handle prompt editing
+    viewerImgPrompt.addEventListener('blur', async () => {
+        const mediaId = modals.imageViewer.dataset.currentMediaId;
+        if (mediaId && mediaId !== 'ephemeral') {
+            const character = characters.find(c => c.id === activeCharacterId);
+            const media = character?.media.find(m => m.id === mediaId);
+            if (media && viewerImgPrompt.textContent) {
+                media.prompt = viewerImgPrompt.textContent.trim();
+                await saveAppState({ userProfile, characters });
+            }
+        }
+        viewerImgPrompt.contentEditable = 'false';
+        viewerImgPrompt.blur();
+    });
+
+    viewerImgPrompt.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            viewerImgPrompt.blur();
+        } else if (e.key === 'Escape') {
+            // Reset to original prompt
+            const mediaId = modals.imageViewer.dataset.currentMediaId;
+            if (mediaId && mediaId !== 'ephemeral') {
+                const character = characters.find(c => c.id === activeCharacterId);
+                const media = character?.media.find(m => m.id === mediaId);
+                if (media) {
+                    viewerImgPrompt.textContent = media.prompt;
+                }
+            }
+            viewerImgPrompt.contentEditable = 'false';
+            viewerImgPrompt.blur();
+        }
+    });
+
+    viewerImgPrompt.addEventListener('click', () => {
+        const mediaId = modals.imageViewer.dataset.currentMediaId;
+        if (mediaId && mediaId !== 'ephemeral') {
+            viewerImgPrompt.contentEditable = 'true';
+            viewerImgPrompt.focus();
         }
     });
 
