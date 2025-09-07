@@ -16,6 +16,7 @@
 
 import { GoogleGenAI, Type, Chat, HarmBlockThreshold, HarmCategory, GenerateContentResponse, Modality, Part } from "@google/genai";
 import { saveAppState, loadAppState, blobToBase64, base64ToBlob } from './storageServices';
+import JSZip from 'jszip';
 
 // --- TYPES AND INTERFACES ---
 interface UserProfile {
@@ -838,14 +839,17 @@ ${profileString}
 // --- RENDER FUNCTIONS ---
 function renderUserProfile() {
     const settingsUserProfileDisplay = document.getElementById('settings-user-profile-display')!;
+    const headerUserProfileDisplay = document.getElementById('user-profile-display')!;
 
     if (userProfile) {
         settingsUserProfileDisplay.textContent = `Logged in as: ${userProfile.name}`;
+        headerUserProfileDisplay.textContent = `Logged in as: ${userProfile.name}`;
         // Always close the user profile modal when profile exists
         modals.userProfile.style.display = 'none';
         console.log("User profile modal closed - profile exists");
     } else {
         settingsUserProfileDisplay.textContent = 'Not logged in';
+        headerUserProfileDisplay.textContent = 'Not logged in';
         // Only show modal if no profile exists
         modals.userProfile.style.display = 'flex';
         console.log("User profile modal opened - no profile exists");
@@ -3262,26 +3266,63 @@ async function init() {
     importFileInput.addEventListener('change', async (e) => {
         const file = (e.target as HTMLInputElement).files?.[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const data = JSON.parse(event.target?.result as string);
+
+        showLoading('Importing data...');
+
+        try {
+            if (file.name.endsWith('.zip')) {
+                // Handle ZIP import
+                const zip = new JSZip();
+                const zipContent = await zip.loadAsync(file);
+
+                // Extract JSON data
+                const dataFile = zipContent.file('data.json');
+                if (!dataFile) {
+                    throw new Error('Invalid ZIP file: No data.json found');
+                }
+
+                const dataJson = await dataFile.async('text');
+                const data = JSON.parse(dataJson);
+
                 if (data.characters && Array.isArray(data.characters)) {
                     let importedCount = 0;
+
                     for (const rawImportedChar of data.characters) {
                         // First, run the migration function to convert old formats
                         const importedChar = migrateCharacter(rawImportedChar);
 
-                        // Process any video data from base64 to Blob
+                        // Process media files from ZIP
                         if (importedChar.media && Array.isArray(importedChar.media)) {
                             for (const media of importedChar.media) {
-                                if (media.type === 'video' && typeof media.data === 'string' && media.data.startsWith('data:video')) {
+                                if (typeof media.data === 'string' && media.data.startsWith('media/')) {
+                                    // This is a file reference in the ZIP
+                                    const mediaFile = zipContent.file(media.data);
+                                    if (mediaFile) {
+                                        const blob = await mediaFile.async('blob');
+                                        media.data = blob;
+                                    }
+                                } else if (media.type === 'video' && typeof media.data === 'string' && media.data.startsWith('data:video')) {
+                                    // Legacy base64 video data
                                     const mimeType = media.data.match(/data:(.*);base64,/)?.[1] || 'video/mp4';
                                     media.data = base64ToBlob(media.data, mimeType);
                                 }
                             }
                         }
-                        
+
+                        // Process audio files in chat history from ZIP
+                        if (importedChar.chatHistory) {
+                            for (let i = 0; i < importedChar.chatHistory.length; i++) {
+                                const msg = importedChar.chatHistory[i];
+                                if (msg?.type === 'voice' && typeof msg.audioDataUrl === 'string' && msg.audioDataUrl.startsWith('media/')) {
+                                    const audioFile = zipContent.file(msg.audioDataUrl);
+                                    if (audioFile) {
+                                        const blob = await audioFile.async('blob');
+                                        msg.audioDataUrl = await blobToBase64(blob);
+                                    }
+                                }
+                            }
+                        }
+
                         // Assign a new unique ID to ensure it's always an addition, not a replacement
                         importedChar.id = `char_${Date.now()}_${importedCount}`;
                         characters.push(importedChar);
@@ -3290,53 +3331,170 @@ async function init() {
 
                     // Do not overwrite existing user profile, just save the updated character list
                     await saveAppState({ userProfile, characters });
-                    
+
                     renderContacts(); // Re-render the contact list with the new additions
-                    alert(`${importedCount} character(s) imported successfully!`);
+                    hideLoading();
+                    alert(`${importedCount} character(s) imported successfully from ZIP!`);
 
                 } else {
-                    alert('Invalid data file: No characters array found.');
+                    throw new Error('Invalid ZIP file: No characters array found in data.json');
                 }
-            } catch (error) { 
-                alert('Failed to import data. The file might be corrupted.'); 
-                console.error(error); 
+
+            } else if (file.name.endsWith('.json')) {
+                // Handle legacy JSON import
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        const data = JSON.parse(event.target?.result as string);
+                        if (data.characters && Array.isArray(data.characters)) {
+                            let importedCount = 0;
+                            for (const rawImportedChar of data.characters) {
+                                // First, run the migration function to convert old formats
+                                const importedChar = migrateCharacter(rawImportedChar);
+
+                                // Process any video data from base64 to Blob
+                                if (importedChar.media && Array.isArray(importedChar.media)) {
+                                    for (const media of importedChar.media) {
+                                        if (media.type === 'video' && typeof media.data === 'string' && media.data.startsWith('data:video')) {
+                                            const mimeType = media.data.match(/data:(.*);base64,/)?.[1] || 'video/mp4';
+                                            media.data = base64ToBlob(media.data, mimeType);
+                                        }
+                                    }
+                                }
+
+                                // Assign a new unique ID to ensure it's always an addition, not a replacement
+                                importedChar.id = `char_${Date.now()}_${importedCount}`;
+                                characters.push(importedChar);
+                                importedCount++;
+                            }
+
+                            // Do not overwrite existing user profile, just save the updated character list
+                            await saveAppState({ userProfile, characters });
+
+                            renderContacts(); // Re-render the contact list with the new additions
+                            hideLoading();
+                            alert(`${importedCount} character(s) imported successfully from JSON!`);
+
+                        } else {
+                            throw new Error('Invalid data file: No characters array found.');
+                        }
+                    } catch (error) {
+                        hideLoading();
+                        alert('Failed to import data. The file might be corrupted.');
+                        console.error(error);
+                    }
+                };
+                reader.readAsText(file);
+                return; // Don't reset input here, let the reader callback handle it
+
+            } else {
+                throw new Error('Unsupported file format. Please select a .zip or .json file.');
             }
-        };
-        reader.readAsText(file);
+
+        } catch (error) {
+            hideLoading();
+            alert(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            console.error(error);
+        }
+
         (e.target as HTMLInputElement).value = ''; // Reset input to allow importing the same file again
     });
 
     exportBtn.addEventListener('click', async () => {
-        const exportableState = JSON.parse(JSON.stringify({ userProfile, characters }));
-        for (const character of exportableState.characters) {
-            const originalChar = characters.find(c => c.id === character.id);
-            if (!originalChar) continue;
-            for (const media of character.media) {
-                const originalMedia = originalChar.media.find(m => m.id === media.id);
-                if (originalMedia?.data instanceof Blob) {
-                    media.data = await blobToBase64(originalMedia.data);
+        showLoading('Preparing export...');
+
+        try {
+            const zip = new JSZip();
+            const exportableState = JSON.parse(JSON.stringify({ userProfile, characters }));
+
+            // Collect all media files
+            const mediaFiles: { path: string; data: Blob; mimeType: string }[] = [];
+
+            for (const character of exportableState.characters) {
+                const originalChar = characters.find(c => c.id === character.id);
+                if (!originalChar) continue;
+
+                // Process media files
+                for (const media of character.media) {
+                    const originalMedia = originalChar.media.find(m => m.id === media.id);
+                    if (originalMedia) {
+                        let blob: Blob;
+                        let mimeType: string;
+
+                        if (originalMedia.data instanceof Blob) {
+                            blob = originalMedia.data;
+                            mimeType = originalMedia.data.type || 'application/octet-stream';
+                        } else if (typeof originalMedia.data === 'string' && originalMedia.data.startsWith('data:')) {
+                            // Convert base64 data URL to blob
+                            const result = base64ToBlob(originalMedia.data, originalMedia.data.match(/data:(.*?);/)?.[1] || 'application/octet-stream');
+                            blob = result;
+                            mimeType = originalMedia.data.match(/data:(.*?);/)?.[1] || 'application/octet-stream';
+                        } else {
+                            continue; // Skip invalid media
+                        }
+
+                        const fileName = `${character.id}_${media.id}.${media.type === 'image' ? 'png' : 'mp4'}`;
+                        mediaFiles.push({ path: `media/${fileName}`, data: blob, mimeType });
+
+                        // Update the export data to reference the file path instead of data
+                        media.data = `media/${fileName}`;
+                    }
                 }
-            }
-             // Also convert any audio blobs in chat history
-            if (character.chatHistory) {
-                for (let i = 0; i < character.chatHistory.length; i++) {
-                    const originalMsg = originalChar.chatHistory[i];
-                    if (originalMsg?.type === 'voice' && originalMsg.audioDataUrl && originalMsg.audioDataUrl.startsWith('blob:')) {
-                        // This case is unlikely with current implementation but good to have
-                        const response = await fetch(originalMsg.audioDataUrl);
-                        const blob = await response.blob();
-                        character.chatHistory[i].audioDataUrl = await blobToBase64(blob);
+
+                // Process audio files in chat history
+                if (character.chatHistory) {
+                    for (let i = 0; i < character.chatHistory.length; i++) {
+                        const originalMsg = originalChar.chatHistory[i];
+                        if (originalMsg?.type === 'voice' && originalMsg.audioDataUrl) {
+                            let blob: Blob;
+                            let mimeType: string;
+
+                            if (originalMsg.audioDataUrl.startsWith('blob:')) {
+                                const response = await fetch(originalMsg.audioDataUrl);
+                                blob = await response.blob();
+                                mimeType = blob.type || 'audio/wav';
+                            } else if (originalMsg.audioDataUrl.startsWith('data:')) {
+                                blob = base64ToBlob(originalMsg.audioDataUrl, originalMsg.audioDataUrl.match(/data:(.*?);/)?.[1] || 'audio/wav');
+                                mimeType = originalMsg.audioDataUrl.match(/data:(.*?);/)?.[1] || 'audio/wav';
+                            } else {
+                                continue;
+                            }
+
+                            const fileName = `${character.id}_voice_${i}.wav`;
+                            mediaFiles.push({ path: `media/${fileName}`, data: blob, mimeType });
+
+                            // Update the export data to reference the file path
+                            character.chatHistory[i].audioDataUrl = `media/${fileName}`;
+                        }
                     }
                 }
             }
+
+            // Add JSON data to ZIP
+            zip.file('data.json', JSON.stringify(exportableState, null, 2));
+
+            // Add media files to ZIP
+            for (const mediaFile of mediaFiles) {
+                zip.file(mediaFile.path, mediaFile.data, { binary: true });
+            }
+
+            // Generate ZIP file
+            const zipBlob = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(zipBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `chet-data-${new Date().toISOString().split('T')[0]}.zip`;
+            link.click();
+            URL.revokeObjectURL(url);
+
+            hideLoading();
+            alert('Export completed! The ZIP file contains all your data and media files.');
+
+        } catch (error) {
+            console.error('Export failed:', error);
+            hideLoading();
+            alert('Export failed. Please try again.');
         }
-        const dataStr = JSON.stringify(exportableState, null, 2);
-        const url = URL.createObjectURL(new Blob([dataStr], { type: 'application/json' }));
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `chet-data-${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
-        URL.revokeObjectURL(url);
     });
 
 
