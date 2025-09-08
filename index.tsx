@@ -105,7 +105,7 @@ interface Message {
 }
 
 interface Media {
-  id:string;
+  id: string;
   type: 'image' | 'video';
   data: string | Blob; // base64 for image, Blob for video
   prompt: string;
@@ -123,7 +123,6 @@ interface SessionContext {
     // New property to track the last reference image for chaining
     lastReferenceImage?: {
         id: string;
-        data: string; // base64
         mimeType: string;
     };
 }
@@ -175,8 +174,8 @@ const safetySettingsMap: Record<SafetyLevel, any[]> = {
 };
 
 const generationConfig = {
-    temperature: 2.0,
-    safetySettings: safetySettingsMap.flexible,
+    temperature: 1.0,
+    safetySettings: safetySettingsMap.unrestricted,
 };
 
 const ROLE_TO_INTIMACY_MAP: Record<string, number> = {
@@ -307,7 +306,8 @@ const modals = {
     imagenFallback: document.getElementById('imagen-fallback-modal')!,
     referenceGallery: document.getElementById('reference-gallery-modal')!,
     avatarChange: document.getElementById('avatar-change-modal')!,
-    promptRefine: document.getElementById('prompt-refine-modal')!,
+    promptRefine: document.getElementById('promptRefine-modal')!,
+    fullscreenPrompt: document.getElementById('fullscreen-prompt-modal')!,
 };
 const loadingText = document.getElementById('loading-text')!;
 const contactList = document.getElementById('contact-list')!;
@@ -380,6 +380,11 @@ const avatarPromptElements = {
     modelSelect: document.getElementById('avatar-model-select')!,
     confirmBtn: document.getElementById('confirm-generate-avatar-btn')! as HTMLButtonElement,
     cancelBtn: document.getElementById('cancel-generate-avatar-btn')! as HTMLButtonElement,
+};
+const fullscreenPromptElements = {
+    textarea: document.getElementById('fullscreen-prompt-textarea')! as HTMLTextAreaElement,
+    saveBtn: document.getElementById('save-fullscreen-prompt-btn')! as HTMLButtonElement,
+    cancelBtn: document.getElementById('cancel-fullscreen-prompt-btn')! as HTMLButtonElement,
 };
 const manualImageElements = {
     prompt: document.getElementById('manual-image-prompt')! as HTMLTextAreaElement,
@@ -760,6 +765,7 @@ async function generateCharacterProfile(name: string, age: number, ethnicity: st
     contents: prompt,
     config: {
       ...generationConfig,
+      temperature: 2.0,
       responseMimeType: "application/json",
       responseSchema: CHARACTER_PROFILE_SCHEMA,
     },
@@ -2024,13 +2030,13 @@ async function generateSceneDescription(character: Character, userPrompt: string
     if (!ai) { throw new Error("AI not initialized"); }
     const promptForDirector = `
 You are a world class visual scene director. Your task is to generate a short, dynamic description of a character's action for an image prompt.
-The final image prompt will already include the character's core appearance (hair, ethnicity), their current outfit, and their general location.
+The final image prompt will already include the character's core appearance (hair, ethnicity), their current outfit, and their general location. for the first image, the outfit must as per the character's activity of that moment.
 Your description MUST NOT repeat these details.
 
 **CONTEXT:**
 - Character's last message: "${lastMessageContent}"
 - User's request: "${userPrompt}"
-- The prompt MUST end with '-- no phone visible in the frame'.
+- The prompt MUST end with '-- no phone visible in the frame, no 3D, no CGI, no digital image'.
 
 **YOUR TASK:**
 - Describe ONLY the character's immediate facial expression, mood, and physical action/pose in a single, concise paragraph.
@@ -2049,7 +2055,7 @@ Your description MUST NOT repeat these details.
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: promptForDirector,
-            config: { temperature: 0.8 },
+            config: { temperature: 0.5 },
         });
         return response.text.trim();
     } catch (error) {
@@ -2064,6 +2070,7 @@ async function generateOutfitDescription(character: Character, location: string,
     const generalStyle = character.characterProfile.physicalStyle.clothingStyle;
     const lastMessage = character.chatHistory.filter(m => m.sender === 'ai' && m.type === 'text').pop()?.content || '';
     const { timeDescription } = getContextualTime(new Date().toISOString(), character.timezone);
+    let translatedGeneralStyle: string = generalStyle; // Declare here
 
     const prompt = `You are a world class fashion stylist and scene describer for an AI character. Your task is to describe a contextually appropriate outfit. The description must be concise and suitable for an image generation prompt.
 
@@ -2087,14 +2094,18 @@ async function generateOutfitDescription(character: Character, location: string,
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
-            config: { temperature: 0.8 },
+            config: { temperature: 0.5 },
         });
-        const translatedOutfit = await translateTextToEnglish(response.text.trim());
+        const [translatedOutfit, generalStyleTranslated] = await Promise.all([ // Renamed to avoid conflict
+            translateTextToEnglish(response.text.trim()),
+            translateTextToEnglish(generalStyle)
+        ]);
+        translatedGeneralStyle = generalStyleTranslated; // Assign here
         return translatedOutfit;
     } catch (error) {
         console.error("Failed to generate outfit description:", error);
         // Fallback to the general style
-        return await translateTextToEnglish(generalStyle);
+        return translatedGeneralStyle;
     }
 }
 
@@ -2106,14 +2117,24 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
     // --- Part 1: Extract Core Details ---
     const age = basicInfo.age;
     const rawRaceOrDescent = basicInfo.ethnicity;
-    const raceOrDescent = await translateTextToEnglish(rawRaceOrDescent);
-    const GeneralAppearance = await translateTextToEnglish(physicalStyle.overallVibe);
+    const rawHairStyle = `${physicalStyle.hairColor} ${physicalStyle.hairStyle}`;
+    const rawOverallVibe = physicalStyle.overallVibe;
     const rawSkinDescription = physicalStyle.skinTone;
-    const skinDescription = await translateTextToEnglish(rawSkinDescription);
+
+    const [
+        raceOrDescent,
+        GeneralAppearance,
+        skinDescription,
+        sessionHairstyle
+    ] = await Promise.all([
+        translateTextToEnglish(rawRaceOrDescent),
+        translateTextToEnglish(rawOverallVibe),
+        translateTextToEnglish(rawSkinDescription),
+        translateTextToEnglish(rawHairStyle)
+    ]);
 
     // --- Part 2: Session Context (Location & Hairstyle) ---
     const sessionLocation = basicInfo.cityOfResidence;
-    const sessionHairstyle = await translateTextToEnglish(`${physicalStyle.hairColor} ${physicalStyle.hairStyle}`);
 
     activeCharacterSessionContext = {
         ...activeCharacterSessionContext,
@@ -2165,9 +2186,7 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
     const genderPronoun = character.characterProfile.basicInfo.gender === 'male' ? 'him' : 'her';
     const genderNoun = character.characterProfile.basicInfo.gender === 'male' ? 'man' : 'woman';
 
-    const prompt = `
-A ultra-realistic photograph, shot on an iPhone 16 Pro Max, 26mm wide-angle lens, cinematic 9:16 aspect ratio. A ${age}-year-old ${genderNoun} of ${raceOrDescent} descent${raceVisualDescription}, captured in a selfie moment. ${GeneralAppearance}. ${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ${genderPronoun === 'him' ? 'His' : 'Her'} skin shows realistic texture and subtle pores, ${skinDescription}. ${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}. The scene is set in ${sessionLocation} during ${timeDescription}. ${sceneDescription}. ${genderPronoun === 'him' ? 'His' : 'Her'} expression is as the naration. The image exhibits the natural grain, dynamic range, and slight lens distortion of a genuine smartphone photo, with absolutely no sign of digital rendering, 3D assets, or artificial art styles. 8K resolution, extreme detail, photorealistic. -- no phone visible in the frame.
-`.trim().replace(/\n/g, ' ').replace(/\s\s+/g, ' ');
+    const prompt = `Make ${genderPronoun} take a selfie, ${age}-year-old ${raceOrDescent} ${genderNoun}${raceVisualDescription}. ${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}. ${sceneDescription}. ${genderPronoun === 'him' ? 'He' : 'She'} is in ${sessionLocation} during ${timeDescription}. -- no phone visible in the frame.`;
 
     return prompt;
 }
@@ -2197,10 +2216,17 @@ async function generateDialogueForVideo(character: Character, action: string): P
 
 async function constructVideoPrompt(character: Character, userPrompt: string): Promise<string> {
     const { basicInfo, physicalStyle } = character.characterProfile;
-    const visualDNA = await translateTextToEnglish(physicalStyle.overallVibe);
-
     const sessionLocation = basicInfo.cityOfResidence;
-    const sessionHairstyle = await translateTextToEnglish(`${physicalStyle.hairColor} ${physicalStyle.hairStyle}`);
+
+    const [
+        visualDNA,
+        sessionHairstyle,
+        raceOrdescent
+    ] = await Promise.all([
+        translateTextToEnglish(physicalStyle.overallVibe),
+        translateTextToEnglish(`${physicalStyle.hairColor} ${physicalStyle.hairStyle}`),
+        translateTextToEnglish(basicInfo.ethnicity)
+    ]);
 
     // --- Race Visual Characteristics ---
     let raceVisualDescription = '';
@@ -2240,7 +2266,6 @@ async function constructVideoPrompt(character: Character, userPrompt: string): P
     // --- Generate Dynamic Outfit ---
     const outfitDescription = await generateOutfitDescription(character, sessionLocation, userPrompt);
 
-    const raceOrdescent = await translateTextToEnglish(basicInfo.ethnicity);
     const age = basicInfo.age;
 
     // Generate specific dialogue for the video
@@ -2272,7 +2297,7 @@ async function handleGenerateImageRequest(
 
     const { mediaIdToUse, promptToUse, safetyLevel, manualReferenceImage } = options;
     let modelToUse = options.modelToUse;
-    const mediaId = mediaIdToUse || `media_${Date.now()}`;
+    const mediaId = mediaIdToUse || (character.media.length + 1).toString();
     
     let placeholder: HTMLDivElement;
     if (mediaIdToUse && (placeholder = mediaGallery.querySelector(`[data-media-id="${mediaIdToUse}"]`) as HTMLDivElement)) {
@@ -2286,8 +2311,8 @@ async function handleGenerateImageRequest(
     placeholder.dataset.mediaId = mediaId;
     placeholder.dataset.originalPrompt = originalPrompt;
     placeholder.dataset.mediaType = 'image';
-    placeholder.innerHTML = `<div class="spinner"></div><p id="loading-status-${mediaId}">Preparing photo...</p>`;
-    const statusEl = document.getElementById(`loading-status-${mediaId}`)!;
+    placeholder.innerHTML = `<div class="spinner"></div><p>Preparing photo...</p>`;
+    const statusEl = placeholder.querySelector('p') as HTMLParagraphElement;
 
     let finalReferenceImage: { base64Data: string; mimeType: string; } | undefined;
     let finalEnglishPrompt = '';
@@ -2304,7 +2329,18 @@ async function handleGenerateImageRequest(
 
             if (activeCharacterSessionContext?.lastReferenceImage) {
                 console.log("Chaining from last generated image:", activeCharacterSessionContext.lastReferenceImage.id);
-                const base64Data = activeCharacterSessionContext.lastReferenceImage.data.split(',')[1];
+                let base64Data: string;
+                if (activeCharacterSessionContext.lastReferenceImage.id === "0") {
+                    base64Data = character.avatar.split(',')[1];
+                } else {
+                    const media = character.media.find(m => m.id === activeCharacterSessionContext.lastReferenceImage!.id);
+                    if (media && typeof media.data === 'string') {
+                        base64Data = media.data.split(',')[1];
+                    } else {
+                        console.warn("Could not find reference image data");
+                        throw new Error("Reference image not found");
+                    }
+                }
                 finalReferenceImage = { base64Data, mimeType: activeCharacterSessionContext.lastReferenceImage.mimeType };
             } else {
                 console.log("No previous image in session, using avatar as reference.");
@@ -2331,17 +2367,31 @@ async function handleGenerateImageRequest(
             statusEl.textContent = 'Constructing prompt...';
             finalEnglishPrompt = await constructMediaPrompt(character, sceneDescription);
 
-            // For AI-initiated, show prompt refinement modal
-            if (isAiInitiated) {
+            // For AI-initiated, show prompt refinement modal, UNLESS it's the very first image (avatar-based)
+            if (isAiInitiated && !activeCharacterSessionContext?.lastReferenceImage) {
+                // Skip refinement modal for the first AI-initiated image (avatar-based)
+                console.log("Skipping prompt refinement for initial avatar-based image generation.");
+            } else if (isAiInitiated) {
                 const promptTextarea = document.getElementById('refine-prompt-textarea') as HTMLTextAreaElement;
                 const useBtn = document.getElementById('use-refine-prompt-btn') as HTMLButtonElement;
                 const refineBtn = document.getElementById('ai-refine-prompt-btn') as HTMLButtonElement;
                 const editBtn = document.getElementById('edit-refine-prompt-btn') as HTMLButtonElement;
                 const cancelBtn = document.getElementById('cancel-refine-prompt-btn') as HTMLButtonElement;
 
+                if (!promptTextarea) {
+                    console.error('refine-prompt-textarea element not found, skipping refinement');
+                    // Fallback to direct generation
+                    return await handleGenerateImageRequest(originalPrompt, {
+                        promptToUse: finalEnglishPrompt,
+                        modelToUse: modelToUse,
+                        safetyLevel: safetyLevel || 'flexible',
+                        manualReferenceImage: finalReferenceImage
+                    });
+                }
+
                 promptTextarea.value = finalEnglishPrompt;
 
-                return new Promise((resolve) => {
+                await new Promise((resolve) => {
                     const cleanup = () => {
                         modals.promptRefine.style.display = 'none';
                         useBtn.onclick = null;
@@ -2431,11 +2481,10 @@ async function handleGenerateImageRequest(
             
             // Update context for next chained generation if it was AI-initiated
             if (isAiInitiated && activeCharacterSessionContext) {
-                 activeCharacterSessionContext.lastReferenceImage = {
-                    id: newMedia.id,
-                    data: newMedia.data as string,
-                    mimeType: (newMedia.data as string).match(/data:(.*);base64,/)?.[1] || 'image/png'
-                };
+                  activeCharacterSessionContext.lastReferenceImage = {
+                     id: newMedia.id,
+                     mimeType: (newMedia.data as string).match(/data:(.*);base64,/)?.[1] || 'image/png'
+                 };
             }
             await saveAppState({ userProfile, characters });
         }
@@ -2725,22 +2774,77 @@ function openImageViewer(options: { mediaId?: string; imageDataUrl?: string; pro
     transformX = 0;
     transformY = 0;
     viewerImg.style.transform = `translate(${transformX}px, ${transformY}px) scale(${scale})`;
+
+    // Add click handler to image for fullscreen
+    viewerImg.onclick = () => {
+        fullscreenImage();
+    };
+
+    // Add back button handler for Android
+    const handleBackButton = (e: PopStateEvent) => {
+        const modalContent = modals.imageViewer.querySelector('.modal-content') as HTMLElement;
+        if (modalContent.classList.contains('fullscreen')) {
+            e.preventDefault();
+            fullscreenImage();
+        }
+    };
+
+    // Add empty area click handler to exit fullscreen
+    const modalContent = modals.imageViewer.querySelector('.modal-content') as HTMLElement;
+    const handleEmptyClick = (e: Event) => {
+        const target = e.target as HTMLElement;
+        const modalContent = modals.imageViewer.querySelector('.modal-content') as HTMLElement;
+        if (modalContent.classList.contains('fullscreen') &&
+            target === modalContent) {
+            fullscreenImage();
+        }
+    };
+
+    // Store handlers to remove them later
+    (modals.imageViewer as any)._backHandler = handleBackButton;
+    (modals.imageViewer as any)._emptyClickHandler = handleEmptyClick;
+
+    window.addEventListener('popstate', handleBackButton);
+    modalContent.addEventListener('click', handleEmptyClick);
 }
 
 function closeImageViewer() {
+    // Exit fullscreen if active
+    const modalContent = modals.imageViewer.querySelector('.modal-content') as HTMLElement;
+    if (modalContent.classList.contains('fullscreen')) {
+        fullscreenImage();
+    }
+
+    // Remove event listeners
+    if ((modals.imageViewer as any)._backHandler) {
+        window.removeEventListener('popstate', (modals.imageViewer as any)._backHandler);
+    }
+    if ((modals.imageViewer as any)._emptyClickHandler) {
+        modalContent.removeEventListener('click', (modals.imageViewer as any)._emptyClickHandler);
+    }
+
+    // Reset image click handler
+    viewerImg.onclick = null;
+
     modals.imageViewer.style.display = 'none';
     delete modals.imageViewer.dataset.currentMediaId;
 }
 
 function fullscreenImage() {
-    if (viewerImg.requestFullscreen) {
-        viewerImg.requestFullscreen();
-    } else if ((viewerImg as any).webkitRequestFullscreen) {
-        (viewerImg as any).webkitRequestFullscreen();
-    } else if ((viewerImg as any).mozRequestFullScreen) {
-        (viewerImg as any).mozRequestFullScreen();
-    } else if ((viewerImg as any).msRequestFullscreen) {
-        (viewerImg as any).msRequestFullscreen();
+    const modal = modals.imageViewer;
+    const modalContent = modal.querySelector('.modal-content') as HTMLElement;
+
+    if (modalContent.classList.contains('fullscreen')) {
+        // Exit fullscreen
+        modalContent.classList.remove('fullscreen');
+        // Reset zoom and pan
+        scale = 1;
+        transformX = 0;
+        transformY = 0;
+        viewerImg.style.transform = `translate(${transformX}px, ${transformY}px) scale(${scale})`;
+    } else {
+        // Enter fullscreen
+        modalContent.classList.add('fullscreen');
     }
 }
 
@@ -2759,7 +2863,24 @@ async function copyImage() {
 function downloadImage() {
     const link = document.createElement('a');
     link.href = viewerImg.src;
-    link.download = 'chet_image.png';
+    const mediaId = modals.imageViewer.dataset.currentMediaId;
+    let downloadName = 'chet_image.png';
+    if (activeCharacterId) {
+        const character = characters.find(c => c.id === activeCharacterId);
+        if (character) {
+            const charName = character.characterProfile.basicInfo.name.replace(/\s/g, '_');
+            if (mediaId === 'ephemeral') {
+                downloadName = `0_${charName}.png`;
+            } else if (mediaId) {
+                const media = character.media.find(m => m.id === mediaId);
+                if (media) {
+                    const id = parseInt(media.id);
+                    downloadName = `${id}_${charName}.png`;
+                }
+            }
+        }
+    }
+    link.download = downloadName;
     link.click();
 }
 
@@ -2817,8 +2938,12 @@ async function handleConfirmImageEdit() {
     const instruction = imageEditElements.textarea.value.trim();
     const selectedSafetyLevel = (document.querySelector('input[name="edit-safety-level"]:checked') as HTMLInputElement)?.value as SafetyLevel;
 
-    if (!mediaId || !instruction) {
-        alert("Missing media ID or instruction.");
+    if (!mediaId) {
+        alert("Missing media ID. Please try again.");
+        return;
+    }
+    if (!instruction.trim()) {
+        alert("Please enter an edit instruction.");
         return;
     }
 
@@ -4011,9 +4136,34 @@ async function init() {
         }
     });
 
+    // Add click handler for avatar preview to open in full screen
+    avatarPreview.img.addEventListener('click', () => {
+        if (avatarPreview.img.src && avatarPreview.img.src !== '' && !avatarPreview.img.src.includes('placeholder')) {
+            openImageViewer({
+                imageDataUrl: avatarPreview.img.src,
+                promptText: characterCreationPreview?.avatarPrompt || 'Generated avatar'
+            });
+        }
+    });
+
     avatarPromptElements.confirmBtn.addEventListener('click', handleConfirmGenerateAvatar);
     avatarPromptElements.cancelBtn.addEventListener('click', () => {
         modals.avatarPrompt.style.display = 'none';
+    });
+
+    // Add click handler for avatar prompt textarea to open full-screen editor
+    avatarPromptElements.textarea.addEventListener('click', () => {
+        fullscreenPromptElements.textarea.value = avatarPromptElements.textarea.value;
+        modals.fullscreenPrompt.style.display = 'flex';
+    });
+
+    // Full-screen prompt modal event listeners
+    fullscreenPromptElements.saveBtn.addEventListener('click', () => {
+        avatarPromptElements.textarea.value = fullscreenPromptElements.textarea.value;
+        modals.fullscreenPrompt.style.display = 'none';
+    });
+    fullscreenPromptElements.cancelBtn.addEventListener('click', () => {
+        modals.fullscreenPrompt.style.display = 'none';
     });
     avatarPreview.saveBtn.addEventListener('click', handleSaveCharacter);
     
@@ -4023,6 +4173,48 @@ async function init() {
     chatScreenElements.headerInfo.addEventListener('click', () => openCharacterEditor(activeCharacterId));
     document.getElementById('toggle-media-panel-btn')!.addEventListener('click', () => mediaPanel.classList.toggle('open'));
     document.getElementById('close-media-panel-btn')!.addEventListener('click', () => mediaPanel.classList.remove('open'));
+
+    // Prevent horizontal swiping to media panel when closed
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isHorizontalSwipe = false;
+
+    // Add listeners to multiple elements to ensure capture
+    const elementsToPrevent = [screens.chat, mediaPanel, document.getElementById('phone-ui')!];
+
+    elementsToPrevent.forEach(element => {
+        element.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+            isHorizontalSwipe = false;
+        }, { passive: false, capture: true });
+
+        element.addEventListener('touchmove', (e) => {
+            if (!touchStartX || !touchStartY) return;
+
+            const touchCurrentX = e.touches[0].clientX;
+            const touchCurrentY = e.touches[0].clientY;
+            const deltaX = Math.abs(touchCurrentX - touchStartX);
+            const deltaY = Math.abs(touchCurrentY - touchStartY);
+
+            // If horizontal movement is significant and media panel is closed, prevent swipe
+            if (deltaX > deltaY && deltaX > 5 && !mediaPanel.classList.contains('open')) {
+                isHorizontalSwipe = true;
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, { passive: false, capture: true });
+
+        element.addEventListener('touchend', (e) => {
+            if (isHorizontalSwipe && !mediaPanel.classList.contains('open')) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            touchStartX = 0;
+            touchStartY = 0;
+            isHorizontalSwipe = false;
+        }, { passive: false, capture: true });
+    });
     
     chatScreenElements.input.addEventListener('input', () => {
         toggleChatButton(chatScreenElements.input.value.trim().length > 0);
@@ -4488,8 +4680,16 @@ async function init() {
         scale = Math.min(Math.max(0.5, scale), 5);
         viewerImg.style.transform = `translate(${transformX}px, ${transformY}px) scale(${scale})`;
     });
-    viewerImg.addEventListener('mousedown', (e) => { isPanning = true; startX = e.clientX - transformX; startY = e.clientY - transformY; viewerImg.classList.add('panning'); });
-    window.addEventListener('mouseup', () => { isPanning = false; viewerImg.classList.remove('panning'); });
+    viewerImg.addEventListener('mousedown', (e) => {
+        isPanning = true;
+        startX = e.clientX - transformX;
+        startY = e.clientY - transformY;
+        viewerImg.classList.add('panning');
+    });
+    window.addEventListener('mouseup', () => {
+        isPanning = false;
+        viewerImg.classList.remove('panning');
+    });
     window.addEventListener('mousemove', (e) => {
         if (!isPanning) return;
         e.preventDefault();

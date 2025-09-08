@@ -1,6 +1,6 @@
 {
   "name": "CHET",
-  "description": "AI Roleplay Chat\nv. 1.2.3",
+  "description": "AI Roleplay Chat\nv. 2.0.5",
   "requestFramePermissions": [
     "microphone"
   ]
