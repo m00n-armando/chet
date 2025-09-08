@@ -298,6 +298,12 @@ let startX = 0, startY = 0;
 let transformX = 0, transformY = 0;
 let scale = 1;
 
+// Touch event state
+let initialPinchDistance = 0;
+let lastScale = 1;
+let lastTouchX = 0;
+let lastTouchY = 0;
+
 
 // --- DOM ELEMENTS ---
 const screens = {
@@ -3170,6 +3176,11 @@ function openImageViewer(options: { mediaId?: string; imageDataUrl?: string; pro
 
     window.addEventListener('popstate', handleBackButton);
     modalContent.addEventListener('click', handleEmptyClick);
+
+    // Add touch event listeners for mobile zoom/pan
+    viewerImg.addEventListener('touchstart', handleTouchStart, { passive: false });
+    viewerImg.addEventListener('touchmove', handleTouchMove, { passive: false });
+    viewerImg.addEventListener('touchend', handleTouchEnd);
 }
 
 function closeImageViewer() {
@@ -3186,6 +3197,11 @@ function closeImageViewer() {
     if ((modals.imageViewer as any)._emptyClickHandler) {
         modalContent.removeEventListener('click', (modals.imageViewer as any)._emptyClickHandler);
     }
+
+    // Remove touch event listeners
+    viewerImg.removeEventListener('touchstart', handleTouchStart);
+    viewerImg.removeEventListener('touchmove', handleTouchMove);
+    viewerImg.removeEventListener('touchend', handleTouchEnd);
 
     // Reset image click handler
     viewerImg.onclick = null;
@@ -5087,6 +5103,60 @@ async function init() {
 }
 
 init();
+
+// Touch event handlers (moved outside init for global access)
+function handleTouchStart(e: TouchEvent) {
+    e.preventDefault(); // Prevent default scrolling/zooming
+    isPanning = true;
+    viewerImg.classList.add('panning');
+
+    if (e.touches.length === 2) {
+        initialPinchDistance = getPinchDistance(e);
+        lastScale = scale;
+    } else if (e.touches.length === 1) {
+        lastTouchX = e.touches[0].clientX;
+        lastTouchY = e.touches[0].clientY;
+    }
+}
+
+function handleTouchMove(e: TouchEvent) {
+    e.preventDefault(); // Prevent default scrolling/zooming
+    if (!isPanning) return;
+
+    if (e.touches.length === 2) {
+        const currentPinchDistance = getPinchDistance(e);
+        if (initialPinchDistance === 0) { // First move after two touches
+            initialPinchDistance = currentPinchDistance;
+            lastScale = scale;
+        }
+        scale = lastScale * (currentPinchDistance / initialPinchDistance);
+        scale = Math.min(Math.max(0.5, scale), 5); // Clamp scale
+    } else if (e.touches.length === 1) {
+        const touch = e.touches[0];
+        const deltaX = touch.clientX - lastTouchX;
+        const deltaY = touch.clientY - lastTouchY;
+        transformX += deltaX;
+        transformY += deltaY;
+        lastTouchX = touch.clientX;
+        lastTouchY = touch.clientY;
+    }
+    viewerImg.style.transform = `translate(${transformX}px, ${transformY}px) scale(${scale})`;
+}
+
+function handleTouchEnd() {
+    isPanning = false;
+    viewerImg.classList.remove('panning');
+    initialPinchDistance = 0; // Reset pinch distance
+}
+
+function getPinchDistance(e: TouchEvent): number {
+    const touch1 = e.touches[0];
+    const touch2 = e.touches[1];
+    return Math.sqrt(
+        Math.pow(touch2.clientX - touch1.clientX, 2) +
+        Math.pow(touch2.clientY - touch1.clientY, 2)
+    );
+}
 
 // Initialize Vercel Analytics
 inject();
