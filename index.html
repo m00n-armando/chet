@@ -364,14 +364,17 @@
                </button>
              </form>
           </div>
-        </div>
-        
-        <div id="media-panel">
-            <header>
-                <h3>Media Gallery</h3>
-                <button id="close-media-panel-btn" aria-label="Close media panel">&times;</button>
+          <div id="screen-media-gallery" class="screen">
+            <header class="screen-header">
+              <button class="back-btn" data-target="chat" aria-label="Back to chat">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12l4.58-4.59Z"></path>
+                </svg>
+              </button>
+              <h2>Media Gallery</h2>
             </header>
-            <div id="media-gallery"></div>
+            <div id="media-gallery" class="media-gallery"></div>
+          </div>
         </div>
       </div>
     </main>

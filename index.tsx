@@ -311,6 +311,7 @@ const screens = {
   createContact: document.getElementById('screen-create-contact')!,
   editCharacter: document.getElementById('screen-edit-character')!,
   chat: document.getElementById('screen-chat')!,
+  mediaGallery: document.getElementById('screen-media-gallery')!,
 };
 const modals = {
     userProfile: document.getElementById('user-profile-modal')!,
@@ -437,7 +438,6 @@ const exportBtn = document.getElementById('export-btn')!;
 const importFileInput = document.getElementById('import-file-input')! as HTMLInputElement;
 const avatarUploadInput = document.getElementById('avatar-upload-input')! as HTMLInputElement;
 const photoUploadInput = document.getElementById('photo-upload-input')! as HTMLInputElement;
-const mediaPanel = document.getElementById('media-panel')!;
 const mediaGallery = document.getElementById('media-gallery')!;
 const viewerImg = document.getElementById('viewer-img')! as HTMLImageElement;
 const viewerVideo = document.getElementById('viewer-video')! as HTMLVideoElement;
@@ -969,6 +969,7 @@ async function startChat(characterId: string) {
         });
         
         renderChatHeader(character);
+        chatScreenElements.headerInfo.onclick = () => openCharacterEditor(characterId);
         
         // Add click listener for avatar thumbnail to open viewer
         chatScreenElements.headerAvatar.onclick = () => {
@@ -3518,11 +3519,17 @@ function openCharacterEditor(characterId: string | null) {
     // Physical & Style
     set('edit-char-bodyType', profile.physicalStyle.bodyType);
     set('edit-char-hairColor', profile.physicalStyle.hairColor);
-    set('edit-char-hairStyle', profile.physicalStyle.hairStyle.join(', ')); // Join array for display
+    const hairStyleValue = Array.isArray(profile.physicalStyle.hairStyle)
+        ? profile.physicalStyle.hairStyle.join(', ')
+        : profile.physicalStyle.hairStyle || '';
+    set('edit-char-hairStyle', hairStyleValue);
     set('edit-char-eyeColor', profile.physicalStyle.eyeColor);
     set('edit-char-skinTone', profile.physicalStyle.skinTone);
     set('edit-char-breastAndCleavage', profile.physicalStyle.breastAndCleavage);
-    set('edit-char-clothingStyle', profile.physicalStyle.clothingStyle.join(', ')); // Join array for display
+    const clothingStyleValue = Array.isArray(profile.physicalStyle.clothingStyle)
+        ? profile.physicalStyle.clothingStyle.join(', ')
+        : profile.physicalStyle.clothingStyle || '';
+    set('edit-char-clothingStyle', clothingStyleValue);
     set('edit-char-accessories', profile.physicalStyle.accessories);
     set('edit-char-makeupStyle', profile.physicalStyle.makeupStyle);
     set('edit-char-overallVibe', profile.physicalStyle.overallVibe);
@@ -4146,13 +4153,11 @@ function matchChatAndMediaHeights() {
     const mediaGallery = document.getElementById('media-gallery') as HTMLElement;
 
     if (chatMessages && mediaGallery) {
-        const mediaHeight = mediaGallery.offsetHeight;
-        chatMessages.style.height = `${mediaHeight}px`;
-        chatMessages.style.overflowY = 'auto';
-        chatMessages.style.overflowX = 'hidden';
-        mediaGallery.style.height = `${mediaHeight}px`;
-        mediaGallery.style.overflowY = 'auto';
-        mediaGallery.style.overflowX = 'hidden';
+        // Remove explicit height setting to let flex-grow handle it
+        // chatMessages.style.height = 'auto'; // Let flex-grow handle height
+        // mediaGallery.style.height = 'auto'; // Let flex-grow
+        // The flex-grow property on .chat-messages and #media-gallery should handle their heights.
+        // No explicit height setting is needed here.
     }
 }
 
@@ -4567,51 +4572,7 @@ async function init() {
 
     // Chat Screen
     chatScreenElements.form.addEventListener('submit', handleChatSubmit);
-    chatScreenElements.headerInfo.addEventListener('click', () => openCharacterEditor(activeCharacterId));
-    document.getElementById('toggle-media-panel-btn')!.addEventListener('click', () => mediaPanel.classList.toggle('open'));
-    document.getElementById('close-media-panel-btn')!.addEventListener('click', () => mediaPanel.classList.remove('open'));
-
-    // Prevent horizontal swiping to media panel when closed
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let isHorizontalSwipe = false;
-
-    // Add listeners to multiple elements to ensure capture
-    const elementsToPrevent = [screens.chat, mediaPanel, document.getElementById('phone-ui')!];
-
-    elementsToPrevent.forEach(element => {
-        element.addEventListener('touchstart', (e) => {
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-            isHorizontalSwipe = false;
-        }, { passive: false, capture: true });
-
-        element.addEventListener('touchmove', (e) => {
-            if (!touchStartX || !touchStartY) return;
-
-            const touchCurrentX = e.touches[0].clientX;
-            const touchCurrentY = e.touches[0].clientY;
-            const deltaX = Math.abs(touchCurrentX - touchStartX);
-            const deltaY = Math.abs(touchCurrentY - touchStartY);
-
-            // If horizontal movement is significant and media panel is closed, prevent swipe
-            if (deltaX > deltaY && deltaX > 5 && !mediaPanel.classList.contains('open')) {
-                isHorizontalSwipe = true;
-                e.preventDefault();
-                e.stopPropagation();
-            }
-        }, { passive: false, capture: true });
-
-        element.addEventListener('touchend', (e) => {
-            if (isHorizontalSwipe && !mediaPanel.classList.contains('open')) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-            touchStartX = 0;
-            touchStartY = 0;
-            isHorizontalSwipe = false;
-        }, { passive: false, capture: true });
-    });
+    document.getElementById('toggle-media-panel-btn')!.addEventListener('click', () => showScreen('mediaGallery'));
     
     chatScreenElements.input.addEventListener('input', () => {
         toggleChatButton(chatScreenElements.input.value.trim().length > 0);

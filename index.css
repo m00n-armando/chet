@@ -24,17 +24,19 @@
 
 html, body {
   height: 100%;
+  overflow: hidden;
+  position: relative;
 }
 
 body {
   font-family: var(--app-font);
-  background-color: #111;
+  background-color: var(--background-color);
   color: var(--text-color);
   display: flex;
   justify-content: center;
-  align-items: flex-start; /* Changed to flex-start for full height */
+  align-items: flex-start;
   height: 100%;
-  overflow: auto; /* Changed to auto to allow scrolling if content overflows */
+  width: 100%;
 }
 
 .hidden {
@@ -46,19 +48,16 @@ body {
    justify-content: center;
    align-items: flex-start;
    width: 100%;
-   height: 100%; /* Use 100% for initial, then adjust with media query */
+   padding: 0;
+   min-height: var(--actual-vh, 100vh);
+   height: var(--actual-vh, 100vh);
 }
 
 #phone-ui {
    position: relative;
    width: 100%;
-   max-width: 420px;
-   height: 100%; /* Use 100% for initial, then adjust with media query */
-   background: #111;
-   border-radius: 40px;
-   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5),
-     0 0 0 10px rgba(0, 0, 0, 0.2) inset;
-   padding: 12px 12px env(safe-area-inset-bottom) 12px;
+   height: var(--actual-vh, 100vh);
+   background: var(--background-color);
    display: flex;
    flex-direction: column;
 }
@@ -66,7 +65,7 @@ body {
 .phone-screen {
   flex-grow: 1;
   background: var(--background-color);
-  border-radius: 30px;
+  border-radius: 0;
   overflow: hidden;
   position: relative;
   display: flex;
@@ -104,8 +103,6 @@ body {
   border-bottom: 1px solid var(--border-color);
   z-index: 1;
   flex-shrink: 0;
-  position: sticky; /* Changed to sticky */
-  top: 0; /* Stick to the top */
   width: 100%; /* Ensure it spans full width */
 }
 
@@ -503,6 +500,7 @@ select option {
 #chat-character-name {
     font-size: 1.1rem;
     font-weight: 600;
+    pointer-events: none;
 }
 #intimacy-meter {
     display: flex;
@@ -529,9 +527,13 @@ select option {
     width: 24px;
     height: 24px;
 }
+#screen-chat {
+    overflow: hidden; /* Prevent the whole screen from scrolling */
+}
 .chat-messages {
     flex-grow: 1;
     overflow-y: auto;
+    min-height: 0; /* Add this to allow shrinking */
     overflow-x: hidden;
     padding: 1rem;
     background-size: cover;
@@ -741,10 +743,9 @@ select option {
     padding: 0.75rem;
     border-top: 1px solid var(--border-color);
     background: var(--surface-color);
-    position: sticky; /* Changed to sticky */
-    bottom: 0; /* Stick to the bottom */
     width: 100%; /* Ensure it spans full width */
     z-index: 2; /* Ensure form is above messages area */
+    flex-shrink: 0;
 }
 #chat-input {
     flex-grow: 1;
@@ -814,43 +815,6 @@ select option {
 }
 
 
-/* Media Panel */
-#media-panel {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 100%;
-    background: var(--surface-color);
-    z-index: 100;
-    transform: translateX(100%);
-    transition: transform 0.3s ease-in-out;
-    display: flex;
-    flex-direction: column;
-    border-radius: 0;
-    touch-action: pan-y;
-}
-#media-panel.open {
-    transform: translateX(0);
-}
-#media-panel header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem;
-    border-bottom: 1px solid var(--border-color);
-}
-#media-panel header h3 {
-    font-size: 1.1rem;
-    font-weight: 600;
-}
-#close-media-panel-btn {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    cursor: pointer;
-    color: var(--text-secondary-color);
-}
 #media-gallery {
     flex-grow: 1;
     overflow-y: auto;
@@ -1803,39 +1767,13 @@ input:checked + .slider:before {
 }
 
 @media (max-width: 480px) {
-    body {
-        overflow: auto;
-        /* Handle safe area insets for devices with notches */
-        /* Removed padding-top and padding-bottom as height: 100% should handle it */
-    }
-
-    #app-container {
-        padding: 0;
-        min-height: var(--actual-vh, 100vh); /* Use actual-vh for full height */
-        height: var(--actual-vh, 100vh); /* Ensure it takes full height */
-        align-items: flex-start;
-    }
-
-    #phone-ui {
-        height: var(--actual-vh, 100vh); /* Use actual-vh for full height */
-        border-radius: 0;
-        padding: 0; /* Removed env(safe-area-inset-bottom) from here */
-        box-shadow: none;
-    }
-
-    .phone-screen {
-        border-radius: 0;
-        height: 100%;
-    }
-
-    #media-panel {
+    #screen-media-gallery {
         top: 0;
         right: 0;
         bottom: 0;
         width: 100%;
     }
 
-@media (max-width: 480px) {
     .create-contact-body {
         flex-direction: column;
         overflow-y: auto;
@@ -1861,7 +1799,6 @@ input:checked + .slider:before {
         overflow-y: auto;
         -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
     }
-}
 
     /* Improve touch targets for mobile */
     button, .header-action-btn, .fab {
