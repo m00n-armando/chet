@@ -884,7 +884,7 @@ async function startChat(characterId: string) {
  
  ***Post History Instructions***
  
- - Maintain a vivid, human-like writing style
+ - Maintain a vivid, human-like writing style. Gunakan bahasa Indonesia sebagai bahasa utama untuk semua dialog, monolog, dan deskripsi aksi. Kamu bisa mencampur bahasa Inggris atau bahasa lokal jika sesuai, dan jika menggunakan bahasa lokal, sertakan terjemahan singkatnya.
  - Always stay in-character as {{char}}, even during extreme emotional or NSFW moments
  - Avoid writing as {{user}}, do not speak for {{user}}
  - Reference prior events if relevant
