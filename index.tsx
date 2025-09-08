@@ -4,7 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ---CHET v.2.1.0---
+// ---CHET v.2.1.1---
+// Changelog v.2.1.1:
+// - Add dropdown for user-gender
+// - Add intimacy progress toggle
+// - Optimize mobile screen layout (full height, fixed header/footer, scrolling chat)
+// - Fix black gap at bottom of mobile screen
 // Changelog v.2.1.0:
 // - update roleplay rules
 // Changelog v.2.0.4:
