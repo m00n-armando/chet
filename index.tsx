@@ -73,11 +73,11 @@ interface CharacterProfile {
   physicalStyle: {
     bodyType: string;
     hairColor: string;
-    hairStyle: string;
+    hairStyle: string[]; // Changed to array of strings
     eyeColor: string;
     skinTone: string;
     breastAndCleavage: string;
-    clothingStyle: string;
+    clothingStyle: string[]; // Changed to array of strings
     accessories: string;
     makeupStyle: string;
     overallVibe: string;
@@ -236,11 +236,11 @@ const CHARACTER_PROFILE_SCHEMA = {
       properties: {
         bodyType: { type: Type.STRING },
         hairColor: { type: Type.STRING },
-        hairStyle: { type: Type.STRING },
+        hairStyle: { type: Type.ARRAY, items: { type: Type.STRING }, description: "A list of possible hairstyles (e.g., 'ponytail', 'messy bun', 'sleek straight')." },
         eyeColor: { type: Type.STRING },
         skinTone: { type: Type.STRING },
         breastAndCleavage: { type: Type.STRING, description: "A concise description of breast size (e.g., A-cup, B-cup) and typical cleavage style. Keep it brief and specific, like 'A natural, modest A-cup, rarely accentuated.'" },
-        clothingStyle: { type: Type.STRING, description: "Modern, real-world clothing style influenced by their profession and aura. Use contemporary fashion terms and avoid fantasy or historical elements. If Female, mostly will wearing deep low-u, low-v, or low-square neckline which revealing her bust and cleavage." },
+        clothingStyle: { type: Type.ARRAY, items: { type: Type.STRING }, description: "A list of modern, real-world clothing styles influenced by their profession and aura. Use contemporary fashion terms and avoid fantasy or historical elements. If Female, mostly will wearing deep low-u, low-v, or low-square neckline which revealing her bust and cleavage." },
         accessories: { type: Type.STRING },
         makeupStyle: { type: Type.STRING },
         overallVibe: { type: Type.STRING },
@@ -255,7 +255,7 @@ const CHARACTER_PROFILE_SCHEMA = {
         backgroundStory: { type: Type.STRING, description: "A brief, compelling backstory." },
         fatalFlaw: { type: Type.STRING, description: "A significant character flaw derived from their backstory." },
         secretDesire: { type: Type.STRING, description: "A hidden desire, also linked to their backstory." },
-        profession: { type: Type.STRING, description: "A realistic profession that fits their." },
+        profession: { type: Type.STRING, description: "A realistic profession that fits their background and personality." },
         hobbies: { type: Type.STRING, description: "Hobbies that are related to their profession." },
         triggerWords: { type: Type.STRING, description: "A few trigger words or situations and their specific reactions." },
       },
@@ -482,6 +482,14 @@ function initializeGenAI(apiKey?: string): boolean {
 
 
 // --- UTILITY FUNCTIONS ---
+function getRandomElement<T>(arr: T[]): T {
+    if (!arr || arr.length === 0) {
+        return '' as any; // Fallback for empty array, adjust as needed for type safety
+    }
+    const randomIndex = Math.floor(Math.random() * arr.length);
+    return arr[randomIndex];
+}
+
 function updateRoleOptions(genderSelect: HTMLSelectElement, roleSelect: HTMLSelectElement) {
     const selectedGender = genderSelect.value;
     const roleOptions = roleSelect.querySelectorAll('option');
@@ -572,8 +580,8 @@ function migrateCharacter(character: Character): Character {
                 name: name,
                 age: parseInt(get('Age'), 10) || 20,
                 ethnicity: get('Ethnicity') || 'Unknown',
-                gender: 'female', // Default for legacy characters
-                race: 'human', // Default for legacy characters
+                gender: get('Gender') || 'female', // Use existing gender from sheet or default 'female'
+                race: get('Race') || 'human', // Use existing race from sheet or default 'human'
                 aura: get('Aura') || 'Unknown',
                 roles: get('Role') || 'new acquaintance',
                 // Add defaults for new fields
@@ -585,11 +593,11 @@ function migrateCharacter(character: Character): Character {
             physicalStyle: {
                 bodyType: 'Average',
                 hairColor: 'Black',
-                hairStyle: 'Short',
+                hairStyle: ['Short'],
                 eyeColor: 'Brown',
                 skinTone: 'Fair',
                 breastAndCleavage: 'Modest',
-                clothingStyle: 'Casual',
+                clothingStyle: ['Casual'],
                 accessories: 'None',
                 makeupStyle: 'Natural',
                 overallVibe: 'A calm and collected individual.',
@@ -863,6 +871,8 @@ async function startChat(characterId: string) {
  
  ${profileString}
  
+ **Your Gender Identity:** You identify as a ${basicInfo.gender}.
+ 
  **Gender Definitions for AI:**
  - Transgender female: Male yang berubah dan berpenampilan seperti female, tapi masih punya kelamin male.
  - Transgender male: Female yang berubah jadi male, tapi kelaminnya female.
@@ -967,7 +977,7 @@ async function startChat(characterId: string) {
         
         // Reset session context, specifically the image chain
         activeCharacterSessionContext = {
-            hairstyle: character.characterProfile.physicalStyle.hairStyle,
+            hairstyle: getRandomElement(character.characterProfile.physicalStyle.hairStyle), // Select a random hairstyle
             timestamp: Date.now(),
             lastReferenceImage: undefined,
         };
@@ -1179,10 +1189,14 @@ async function getDurationFromBlob(blob: Blob): Promise<number> {
     });
 }
 
-async function generateSpeechData(instruction: string): Promise<{ audioDataUrl: string; duration: number; dialogue: string; }> {
+async function generateSpeechData(character: Character, instruction: string): Promise<{ audioDataUrl: string; duration: number; dialogue: string; }> {
     if (!ai) { throw new Error("AI not initialized"); }
+    
+    const characterGender = character.characterProfile.basicInfo.gender.toLowerCase();
+    const pronounSubject = (characterGender === 'male' || characterGender === 'transgender male') ? 'he' : 'she';
+
     // Step 1: Generate dialogue from the AI's instruction
-    const dialogueGenerationPrompt = `You are an AI character. Based on the following instruction, generate a single, short, emotional line of dialogue in English with slow pace, seductive, sensual and intimate tone. Return ONLY the dialogue text, without any quotes or extra formatting. Instruction: "${instruction}"`;
+    const dialogueGenerationPrompt = `You are an AI character. You identify as a ${character.characterProfile.basicInfo.gender}. Based on the following instruction, generate a single, short, emotional line of dialogue in English with slow pace, seductive, sensual and intimate tone that ${pronounSubject} would say. Return ONLY the dialogue text, without any quotes or extra formatting. Instruction: "${instruction}"`;
     const dialogueResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: dialogueGenerationPrompt,
@@ -1533,10 +1547,14 @@ async function constructAvatarPrompt(characterProfile: CharacterProfile): Promis
     const rawRaceOrDescent = basicInfo.ethnicity;
     const raceOrDescent = await translateTextToEnglish(rawRaceOrDescent);
     
-    const hair = await translateTextToEnglish(`${physicalStyle.hairColor} ${physicalStyle.hairStyle}`);
+    // Select a random hairstyle and clothing style from the arrays
+    const selectedHairStyle = getRandomElement(physicalStyle.hairStyle);
+    const selectedClothingStyle = getRandomElement(physicalStyle.clothingStyle);
+
+    const hair = await translateTextToEnglish(`${physicalStyle.hairColor} ${selectedHairStyle}`);
     const eyes = await translateTextToEnglish(physicalStyle.eyeColor);
     const makeup = physicalStyle.makeupStyle;
-    const clothing = physicalStyle.clothingStyle;
+    const clothing = selectedClothingStyle; // Use the selected single style
 
     const genderPronoun = basicInfo.gender === 'male' ? 'him' : 'her';
     const genderNoun = basicInfo.gender === 'male' ? 'man' : 'woman';
@@ -1816,17 +1834,18 @@ async function updateIntimacyLevel(character: Character, userMessage: string, ai
     }
 
     const prompt = `You are a world class relationship psychologist analyzing a conversation. Based on the character's profile, aura, the last user message, and the character's reply, determine how the intimacy level should change.
-
-**Character Profile Snippet:**
-- Personality: ${character.characterProfile.personalityContext.personalityTraits}
-- Aura: ${character.characterProfile.basicInfo.aura} (This affects how they react to different interactions)
-- Triggers (Dislikes): ${character.characterProfile.personalityContext.triggerWords}
-- Secret Desire: ${character.characterProfile.personalityContext.secretDesire}
-- Current Intimacy Level: ${currentLevel} / 100 (Range: -100 to +100)${possessivenessNote}
-
-**Last Exchange:**
-- User said: "${userMessage}"
-- Character replied: "${aiResponse}"
+ 
+ **Character Profile Snippet:**
+ - Personality: ${character.characterProfile.personalityContext.personalityTraits}
+ - Gender: ${character.characterProfile.basicInfo.gender}
+ - Aura: ${character.characterProfile.basicInfo.aura} (This affects how they react to different interactions)
+ - Triggers (Dislikes): ${character.characterProfile.personalityContext.triggerWords}
+ - Secret Desire: ${character.characterProfile.personalityContext.secretDesire}
+ - Current Intimacy Level: ${currentLevel} / 100 (Range: -100 to +100)${possessivenessNote}
+ 
+ **Last Exchange:**
+ - User said: "${userMessage}"
+ - Character replied: "${aiResponse}"
 
 **AURA-BASED INTIMACY RULES:**
 - **Submissive characters**: Gain intimacy (+0.1 to +2.0) when receiving commands, guidance, or being praised. Lose intimacy (-0.1 to -1.0) when ignored or treated dismissively.
@@ -1993,24 +2012,25 @@ async function generateAIResponse(userInput: { text: string; image?: { dataUrl: 
         const imageMatch = fullResponseText.match(/\[GENERATE_IMAGE:(.*?)\]/s);
         const videoMatch = fullResponseText.match(/\[GENERATE_VIDEO:(.*?)\]/s);
         const voiceMatch = fullResponseText.match(/\[GENERATE_VOICE:(.*?)\]/s);
-        const cleanedResponse = fullResponseText.replace(/\[GENERATE_(IMAGE|VIDEO|VOICE):.*?\]/gs, '').trim();
+        let cleanedResponse = fullResponseText.replace(/\[GENERATE_(IMAGE|VIDEO|VOICE):.*?\]/gs, '').trim();
+
+        // If AI response is empty after cleaning, provide a default message
+        if (!cleanedResponse) {
+            cleanedResponse = "I'm sorry, I couldn't generate a response at this moment. Please try again.";
+        }
 
         if (aiBubbleElement) {
-            if (cleanedResponse) {
-                if (contentSpan) {
-                    contentSpan.innerHTML = parseMarkdown(cleanedResponse);
-                }
-                const timestampSpan = document.createElement('div');
-                timestampSpan.className = 'timestamp';
-                timestampSpan.textContent = formatTimestamp(finalTimestampISO);
-                aiBubbleElement.appendChild(timestampSpan);
-
-                const aiTextMessage: Message = { sender: 'ai', content: cleanedResponse, timestamp: finalTimestampISO, type: 'text' };
-                character.chatHistory.push(aiTextMessage);
-            } else {
-                aiBubbleElement.remove();
+            if (contentSpan) {
+                contentSpan.innerHTML = parseMarkdown(cleanedResponse);
             }
-        } else if (cleanedResponse) {
+            const timestampSpan = document.createElement('div');
+            timestampSpan.className = 'timestamp';
+            timestampSpan.textContent = formatTimestamp(finalTimestampISO);
+            aiBubbleElement.appendChild(timestampSpan);
+
+            const aiTextMessage: Message = { sender: 'ai', content: cleanedResponse, timestamp: finalTimestampISO, type: 'text' };
+            character.chatHistory.push(aiTextMessage);
+        } else { // If no bubble element was created yet, create one and append
             const aiTextMessage: Message = { sender: 'ai', content: cleanedResponse, timestamp: finalTimestampISO, type: 'text' };
             character.chatHistory.push(aiTextMessage);
             appendMessageBubble(aiTextMessage);
@@ -2018,10 +2038,8 @@ async function generateAIResponse(userInput: { text: string; image?: { dataUrl: 
 
         await saveAppState({ userProfile, characters });
 
-        // After a successful response, analyze and update intimacy
-        if (cleanedResponse) {
-            await updateIntimacyLevel(character, userInput.text, cleanedResponse);
-        }
+        // After a response (even a default one), analyze and update intimacy
+        await updateIntimacyLevel(character, userInput.text, cleanedResponse);
 
         if (imageMatch?.[1]) await handleGenerateImageRequest(imageMatch[1].trim());
         if (videoMatch?.[1]) await handleGenerateVideoRequest(videoMatch[1].trim());
@@ -2325,15 +2343,16 @@ Your description MUST NOT repeat those details and MUST be consistent with the n
 
 async function generateOutfitDescription(character: Character, location: string, sceneDescription: string): Promise<string> {
     if (!ai) { throw new Error("AI not initialized"); }
-    const generalStyle = character.characterProfile.physicalStyle.clothingStyle;
+    // Select a random clothing style from the array for general style fallback
+    const selectedGeneralClothingStyle = getRandomElement(character.characterProfile.physicalStyle.clothingStyle);
     const lastMessage = character.chatHistory.filter(m => m.sender === 'ai' && m.type === 'text').pop()?.content || '';
     const { timeDescription } = getContextualTime(new Date().toISOString(), character.timezone);
-    let translatedGeneralStyle: string = generalStyle; // Declare here
+    let translatedGeneralStyle: string = selectedGeneralClothingStyle; // Declare here
 
     const prompt = `You are a world class fashion stylist and scene describer for an AI character. Your task is to describe a contextually appropriate outfit. The description must be concise and suitable for an image generation prompt.
-
+ 
 **Context:**
-- **Character's General Style:** ${generalStyle}
+- **Character's General Style:** ${selectedGeneralClothingStyle}
 - **Location:** ${location}
 - **Time of Day:** ${timeDescription}
 - **Action/Scene:** ${sceneDescription}
@@ -2356,7 +2375,7 @@ async function generateOutfitDescription(character: Character, location: string,
         });
         const [translatedOutfit, generalStyleTranslated] = await Promise.all([ // Renamed to avoid conflict
             translateTextToEnglish(response.text.trim()),
-            translateTextToEnglish(generalStyle)
+            translateTextToEnglish(selectedGeneralClothingStyle) // Translate the selected single style
         ]);
         translatedGeneralStyle = generalStyleTranslated; // Assign here
         return translatedOutfit;
@@ -2425,7 +2444,7 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
     // --- Part 1: Extract Core Details ---
     const age = basicInfo.age;
     const rawRaceOrDescent = basicInfo.ethnicity;
-    const rawHairStyle = `${physicalStyle.hairColor} ${physicalStyle.hairStyle}`;
+    const rawHairStyle = `${physicalStyle.hairColor} ${getRandomElement(physicalStyle.hairStyle)}`; // Select random hair style
     const rawOverallVibe = physicalStyle.overallVibe;
     const rawSkinDescription = physicalStyle.skinTone;
 
@@ -2533,12 +2552,18 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
 
 async function generateDialogueForVideo(character: Character, action: string): Promise<string> {
     if (!ai) { throw new Error("AI not initialized"); }
-    const prompt = `You are roleplaying as a character. Based on his/her personality and the current situation, write a single, short line of dialogue (5-7 words maximum) in INDONESIAN that he/she would say. Do not add quotation marks or any other text.
+    
+    const characterGender = character.characterProfile.basicInfo.gender.toLowerCase();
+    const pronounSubject = (characterGender === 'male' || characterGender === 'transgender male') ? 'he' : 'she';
+    const pronounObject = (characterGender === 'male' || characterGender === 'transgender male') ? 'him' : 'her';
+    const pronounPossessive = (characterGender === 'male' || characterGender === 'transgender male') ? 'his' : 'her';
+
+    const prompt = `You are roleplaying as a character. Based on ${pronounPossessive} personality and the current situation, write a single, short line of dialogue (5-7 words maximum) in INDONESIAN that ${pronounSubject} would say. Do not add quotation marks or any other text.
 
     Character Persona: ${character.characterProfile.personalityContext.personalityTraits}
-    Situation: She is about to record a short video where she is ${action}.
+    Situation: ${pronounSubject === 'he' ? 'He' : 'She'} is about to record a short video where ${pronounSubject} is ${action}.
 
-    Her dialogue:`;
+    ${pronounSubject === 'he' ? 'His' : 'Her'} dialogue:`;
 
     try {
         const response = await ai.models.generateContent({
@@ -2563,7 +2588,7 @@ async function constructVideoPrompt(character: Character, userPrompt: string): P
         raceOrdescent
     ] = await Promise.all([
         translateTextToEnglish(physicalStyle.overallVibe),
-        translateTextToEnglish(`${physicalStyle.hairColor} ${physicalStyle.hairStyle}`),
+        translateTextToEnglish(`${physicalStyle.hairColor} ${getRandomElement(physicalStyle.hairStyle)}`), // Select random hair style
         translateTextToEnglish(basicInfo.ethnicity)
     ]);
 
@@ -2860,7 +2885,7 @@ async function handleGenerateVoiceRequest(instruction: string) {
     });
 
     try {
-        const speechData = await generateSpeechData(instruction);
+        const speechData = await generateSpeechData(character, instruction);
 
         const voiceMessage: Message = {
             sender: 'ai',
@@ -3477,11 +3502,11 @@ function openCharacterEditor(characterId: string | null) {
     // Physical & Style
     set('edit-char-bodyType', profile.physicalStyle.bodyType);
     set('edit-char-hairColor', profile.physicalStyle.hairColor);
-    set('edit-char-hairStyle', profile.physicalStyle.hairStyle);
+    set('edit-char-hairStyle', profile.physicalStyle.hairStyle.join(', ')); // Join array for display
     set('edit-char-eyeColor', profile.physicalStyle.eyeColor);
     set('edit-char-skinTone', profile.physicalStyle.skinTone);
     set('edit-char-breastAndCleavage', profile.physicalStyle.breastAndCleavage);
-    set('edit-char-clothingStyle', profile.physicalStyle.clothingStyle);
+    set('edit-char-clothingStyle', profile.physicalStyle.clothingStyle.join(', ')); // Join array for display
     set('edit-char-accessories', profile.physicalStyle.accessories);
     set('edit-char-makeupStyle', profile.physicalStyle.makeupStyle);
     set('edit-char-overallVibe', profile.physicalStyle.overallVibe);
@@ -3524,11 +3549,11 @@ async function handleSaveCharacterChanges() {
         physicalStyle: {
             bodyType: get('edit-char-bodyType'),
             hairColor: get('edit-char-hairColor'),
-            hairStyle: get('edit-char-hairStyle'),
+            hairStyle: get('edit-char-hairStyle').split(',').map(s => s.trim()), // Split string into array
             eyeColor: get('edit-char-eyeColor'),
             skinTone: get('edit-char-skinTone'),
             breastAndCleavage: get('edit-char-breastAndCleavage'),
-            clothingStyle: get('edit-char-clothingStyle'),
+            clothingStyle: get('edit-char-clothingStyle').split(',').map(s => s.trim()), // Split string into array
             accessories: get('edit-char-accessories'),
             makeupStyle: get('edit-char-makeupStyle'),
             overallVibe: get('edit-char-overallVibe'),
@@ -3618,11 +3643,11 @@ async function handleAiRefineCharacterDetails() {
         physicalStyle: {
             bodyType: get('edit-char-bodyType'),
             hairColor: get('edit-char-hairColor'),
-            hairStyle: get('edit-char-hairStyle'),
+            hairStyle: get('edit-char-hairStyle').split(',').map(s => s.trim()), // Split string into array
             eyeColor: get('edit-char-eyeColor'),
             skinTone: get('edit-char-skinTone'),
             breastAndCleavage: get('edit-char-breastAndCleavage'),
-            clothingStyle: get('edit-char-clothingStyle'),
+            clothingStyle: get('edit-char-clothingStyle').split(',').map(s => s.trim()), // Split string into array
             accessories: get('edit-char-accessories'),
             makeupStyle: get('edit-char-makeupStyle'),
             overallVibe: get('edit-char-overallVibe'),

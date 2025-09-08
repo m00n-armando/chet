@@ -22,6 +22,8 @@ interface CharacterProfile {
     age: number;
     zodiac: string;
     ethnicity: string;
+    gender: string;
+    race: string;
     cityOfResidence: string;
     aura: string;
     roles: string;
@@ -29,11 +31,11 @@ interface CharacterProfile {
   physicalStyle: {
     bodyType: string;
     hairColor: string;
-    hairStyle: string;
+    hairStyle: string[];
     eyeColor: string;
     skinTone: string;
     breastAndCleavage: string;
-    clothingStyle: string;
+    clothingStyle: string[];
     accessories: string;
     makeupStyle: string;
     overallVibe: string;
