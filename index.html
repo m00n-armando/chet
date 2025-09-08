@@ -420,6 +420,13 @@
                         <span class="slider round"></span>
                     </label>
                 </div>
+                <div class="setting-item">
+                   <label for="intimacy-progress-toggle">Show Intimacy Progress Notification</label>
+                   <label class="toggle-switch">
+                       <input type="checkbox" id="intimacy-progress-toggle" checked>
+                       <span class="slider round"></span>
+                   </label>
+               </div>
             </div>
             <div class="settings-section about-section">
                 <h4>About CHET</h4>
@@ -442,6 +449,16 @@
                 <div class="form-group">
                     <label for="user-name">Your Name</label>
                     <input type="text" id="user-name" name="user-name" required />
+                </div>
+                <div class="form-group">
+                    <label for="user-gender">Your Gender</label>
+                    <select id="user-gender" name="user-gender" required>
+                        <option value="male">Male</option>
+                        <option value="female" selected>Female</option>
+                        <option value="transgender female">Transgender Female</option>
+                        <option value="transgender male">Transgender Male</option>
+                        <option value="non-binary">Non-binary</option>
+                    </select>
                 </div>
                 <button type="submit" class="submit-btn">Save Profile</button>
             </form>

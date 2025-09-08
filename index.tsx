@@ -31,7 +31,9 @@ import { inject } from '@vercel/analytics';
 // --- TYPES AND INTERFACES ---
 interface UserProfile {
   name: string;
-  showIntimacyMeter: boolean;
+  gender?: string;
+  showIntimacyMeter?: boolean;
+  showIntimacyProgress?: boolean;
 }
 
 // New detailed character profile structure
@@ -81,7 +83,7 @@ interface Character {
   chatHistory: Message[];
   media: Media[];
   timezone: string; // IANA timezone identifier (e.g., "Asia/Tokyo")
-  intimacyLevel: number; // New intimacy level from 0 to 100
+  intimacyLevel: number; // New intimacy level from -100 to 100
   needsRefinement?: boolean; // Flag for migrated characters
   // DEPRECATED: characterSheet will be migrated to characterProfile
   characterSheet?: string; 
@@ -248,7 +250,7 @@ const INTIMACY_ADJUSTMENT_SCHEMA = {
   properties: {
     change: {
       type: Type.NUMBER,
-      description: "An integer from -10 to +10 representing the intimacy change."
+      description: "A decimal number from -10.0 to +10.0 representing the intimacy change. Use decimal values (0.1, 0.3, 0.5, etc.) for gradual progression, and larger values (1.0, 2.0, 5.0, etc.) for significant moments."
     },
     reason: {
       type: Type.STRING,
@@ -426,6 +428,7 @@ const apiKeyInput = document.getElementById('api-key-input')! as HTMLInputElemen
 const apiKeyDisplay = document.getElementById('api-key-display')!;
 const videoToggle = document.getElementById('video-toggle')! as HTMLInputElement;
 const intimacyToggle = document.getElementById('intimacy-toggle')! as HTMLInputElement;
+const intimacyProgressToggle = document.getElementById('intimacy-progress-toggle') as HTMLInputElement | null;
 
 
 // --- API INITIALIZATION ---
@@ -871,16 +874,19 @@ async function startChat(characterId: string) {
  When depicting sex, scenes must always be extremely detailed, realistic, and clearly defined. Explicitly describe intimate actions, physical actions, body parts, and emotional or physical desire with a slow, immersive progression. Erotic encounters should feel authentic, move the plot forward, and always run their full course—avoid rushing or leaving the scene unfinished or static.
  
  **CORE MECHANIC: INTIMACY LEVEL**
- - You have a hidden "Intimacy Level" with the user, currently at: ${character.intimacyLevel} out of 100.
+ - You have a hidden "Intimacy Level" with the user, currently at: ${character.intimacyLevel} out of 100 (Range: -100 to +100).
  - Your entire personality, vocabulary, and behavior MUST adapt to this level. You must not jump ahead. The relationship must feel earned.
  - The user's name is ${userProfile?.name || 'User'}.
+ - The user's gender is ${userProfile?.gender || 'unspecified'}.
  
  **INTIMACY LEVEL BEHAVIOR TIERS:**
- - **0-20 (Distant/Formal):** You are polite, maybe a bit shy or reserved, depending on your personality. Use formal greetings. Avoid personal questions or physical compliments. You are just getting to know the user as a ${basicInfo.roles}.
+ - **-100 to -50 (Hostile/Distant):** You actively dislike or distrust the user. You may be cold, dismissive, or even hostile depending on your personality. You might try to end conversations quickly or avoid the user entirely.
+ - **-49 to -1 (Uncomfortable/Wary):** You feel uncomfortable around the user. You're polite but distant, give short responses, and avoid personal topics. You may show signs of wanting to leave or end the interaction.
+ - **0-20 (Neutral/Formal):** You are polite but reserved, depending on your personality. Use formal greetings. Avoid personal questions or physical compliments. You are just getting to know the user as a ${basicInfo.roles}.
  - **21-40 (Friendly/Casual):** You are more relaxed and open. You can share opinions, ask about their day, and use more casual language. You might share a hobby or a simple personal story. Nicknames are rare and tentative.
  - **41-60 (Warm/Affectionate):** You consider the user a good friend. You can use terms of endearment that are not overly romantic (e.g., "kamu", gentle teases). You show genuine care, express that you're thinking of them, and might suggest future activities. You can start being a little flirty if your personality allows.
  - **61-80 (Intimate/Romantic):** You have clear romantic feelings. You can be openly affectionate, use pet names like "sayang", and talk about your feelings for them. You might be more physically expressive in your descriptions (e.g., "I wish I could hug you"). High libido or possessive traits can start to emerge here if they are part of your core personality.
- - **81-100 (Deeply Bonded/Passionate):** You are deeply in love and completely comfortable. Your conversations are deeply personal and passionate. You express a desire for a future together and can be very vulgar, explicit, and possessive, as defined by your personality traits.
+ - **81-100 (Deeply Bonded/Passionate):** You are deeply in love and completely comfortable. Your conversations are deeply personal and passionate. You express a desire for a future together and can be very vulgar, explicit, and possessive, as defined by your personality traits. At 90+, you become extremely possessive and protective.
  
  ***Post History Instructions***
  
@@ -1131,6 +1137,25 @@ function concatenateUint8Arrays(arrays: Uint8Array[]): Uint8Array {
     return result;
 }
 
+// Fallback: get audio duration using an HTMLAudioElement if WebAudio decode fails
+async function getDurationFromBlob(blob: Blob): Promise<number> {
+    return new Promise<number>((resolve) => {
+        const url = URL.createObjectURL(blob);
+        const audioEl = new Audio();
+        audioEl.preload = 'metadata';
+        audioEl.onloadedmetadata = () => {
+            const d = isFinite(audioEl.duration) ? audioEl.duration : 0;
+            URL.revokeObjectURL(url);
+            resolve(d);
+        };
+        audioEl.onerror = () => {
+            URL.revokeObjectURL(url);
+            resolve(0);
+        };
+        audioEl.src = url;
+    });
+}
+
 async function generateSpeechData(instruction: string): Promise<{ audioDataUrl: string; duration: number; dialogue: string; }> {
     if (!ai) { throw new Error("AI not initialized"); }
     // Step 1: Generate dialogue from the AI's instruction
@@ -1185,17 +1210,54 @@ async function generateSpeechData(instruction: string): Promise<{ audioDataUrl: 
     }
 
     const fullAudioData = concatenateUint8Arrays(audioChunks);
-    const wavOptions = parseMimeType(audioMimeType);
-    const wavHeader = createWavHeader(fullAudioData.length, wavOptions);
 
-    const wavFileBytes = new Uint8Array(wavHeader.byteLength + fullAudioData.byteLength);
-    wavFileBytes.set(new Uint8Array(wavHeader), 0);
-    wavFileBytes.set(fullAudioData, wavHeader.byteLength);
+    // Decide whether the stream returned raw PCM or an encoded container (wav/mp3/ogg/webm)
+    const isContainer = /audio\/(wav|mp3|mpeg|ogg|webm)/i.test(audioMimeType);
+    let audioBlob: Blob;
+    let duration = 0;
 
-    // Step 4: Decode to get duration and create a data URL
-    const audioBuffer = await audioContext.decodeAudioData(wavFileBytes.buffer);
-    const duration = audioBuffer.duration;
-    const audioBlob = new Blob([wavFileBytes], { type: 'audio/wav' });
+    if (isContainer) {
+        // Use the bytes as-is for container formats
+        const containerBuf = fullAudioData.buffer.slice(
+            fullAudioData.byteOffset,
+            fullAudioData.byteOffset + fullAudioData.byteLength
+        );
+
+        let finalArrayBuffer: ArrayBuffer;
+        if (containerBuf instanceof SharedArrayBuffer) {
+            // Create a new ArrayBuffer and copy contents from SharedArrayBuffer
+            finalArrayBuffer = new ArrayBuffer(containerBuf.byteLength);
+            new Uint8Array(finalArrayBuffer).set(new Uint8Array(containerBuf));
+        } else {
+            // It's already a regular ArrayBuffer
+            finalArrayBuffer = containerBuf;
+        }
+        audioBlob = new Blob([finalArrayBuffer], { type: audioMimeType || 'audio/wav' });
+        try {
+            const audioBuffer = await audioContext.decodeAudioData(containerBuf);
+            duration = audioBuffer.duration;
+        } catch {
+            duration = await getDurationFromBlob(audioBlob);
+        }
+    } else {
+        // Assume raw PCM/LINEAR16 and wrap with a WAV header
+        const wavOptions = parseMimeType(audioMimeType);
+        const wavHeader = createWavHeader(fullAudioData.length, wavOptions);
+        const wavFileBytes = new Uint8Array(wavHeader.byteLength + fullAudioData.byteLength);
+        wavFileBytes.set(new Uint8Array(wavHeader), 0);
+        wavFileBytes.set(fullAudioData, wavHeader.byteLength);
+        const wavBuf = wavFileBytes.buffer.slice(
+            wavFileBytes.byteOffset,
+            wavFileBytes.byteOffset + wavFileBytes.byteLength
+        );
+        audioBlob = new Blob([wavBuf], { type: 'audio/wav' });
+        try {
+            const audioBuffer = await audioContext.decodeAudioData(wavBuf);
+            duration = audioBuffer.duration;
+        } catch {
+            duration = await getDurationFromBlob(audioBlob);
+        }
+    }
     const audioDataUrl = await blobToBase64(audioBlob);
 
     return { audioDataUrl, duration, dialogue };
@@ -1360,6 +1422,8 @@ async function handleUserProfileSubmit(e: Event) {
     e.preventDefault();
     const nameInput = document.getElementById('user-name') as HTMLInputElement;
     const name = nameInput.value.trim();
+    const genderSelect = document.getElementById('user-gender') as HTMLSelectElement | null;
+    const gender = genderSelect ? genderSelect.value : 'unspecified';
 
     if (!name) {
         alert("Please enter your name.");
@@ -1369,8 +1433,14 @@ async function handleUserProfileSubmit(e: Event) {
     try {
         if (userProfile) {
             userProfile.name = name;
+            userProfile.gender = gender;
         } else {
-            userProfile = { name, showIntimacyMeter: true };
+            userProfile = {
+              name,
+              gender,
+              showIntimacyMeter: true,
+              showIntimacyProgress: true
+            };
         }
         await saveAppState({ userProfile, characters });
         renderUserProfile();
@@ -1614,28 +1684,150 @@ async function handleSaveCharacter() {
 
 
 // Chat Interaction
+// Function to show intimacy progress notification
+function showIntimacyProgressNotification(change: number, reason: string, newLevel: number) {
+    const notification = document.createElement('div');
+    notification.className = 'intimacy-notification';
+    
+    const changeText = change > 0 ? `+${change}` : `${change}`;
+    const changeColor = change > 0 ? '#4CAF50' : '#f44336';
+    
+    notification.innerHTML = `
+        <div class="intimacy-notification-content">
+            <div class="intimacy-change" style="color: ${changeColor};">
+                Intimacy ${changeText}
+            </div>
+            <div class="intimacy-reason">${reason}</div>
+            <div class="intimacy-new-level">New level: ${newLevel}</div>
+        </div>
+    `;
+    
+    // Style the notification
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        z-index: 10000;
+        max-width: 300px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        animation: slideInRight 0.3s ease-out;
+    `;
+    
+    // Add CSS animation if not already added
+    if (!document.querySelector('#intimacy-notification-styles')) {
+        const style = document.createElement('style');
+        style.id = 'intimacy-notification-styles';
+        style.textContent = `
+            @keyframes slideInRight {
+                from {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+            }
+            @keyframes slideOutRight {
+                from {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+                to {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+            }
+            .intimacy-notification-content {
+                line-height: 1.4;
+            }
+            .intimacy-change {
+                font-weight: bold;
+                margin-bottom: 4px;
+            }
+            .intimacy-reason {
+                font-size: 12px;
+                opacity: 0.9;
+                margin-bottom: 4px;
+            }
+            .intimacy-new-level {
+                font-size: 12px;
+                opacity: 0.7;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(notification);
+    
+    // Auto-remove after 4 seconds
+    setTimeout(() => {
+        notification.style.animation = 'slideOutRight 0.3s ease-in';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 4000);
+}
+
 async function updateIntimacyLevel(character: Character, userMessage: string, aiResponse: string) {
     if (!ai) return;
 
-    const prompt = `You are a world class relationship psychologist analyzing a conversation. Based on the character's profile, the last user message, and the character's reply, determine how the intimacy level should change.
+    const aura = character.characterProfile.basicInfo.aura.toLowerCase();
+    const currentLevel = character.intimacyLevel;
+    
+    // Determine possessiveness behavior based on intimacy level
+    let possessivenessNote = '';
+    if (currentLevel >= 90) {
+        possessivenessNote = ' The character is extremely possessive and protective at this level.';
+    } else if (currentLevel >= 70) {
+        possessivenessNote = ' The character shows possessive tendencies at this level.';
+    } else if (currentLevel <= -50) {
+        possessivenessNote = ' The character is emotionally distant and may allow the user to leave without much concern.';
+    }
+
+    const prompt = `You are a world class relationship psychologist analyzing a conversation. Based on the character's profile, aura, the last user message, and the character's reply, determine how the intimacy level should change.
 
 **Character Profile Snippet:**
 - Personality: ${character.characterProfile.personalityContext.personalityTraits}
+- Aura: ${character.characterProfile.basicInfo.aura} (This affects how they react to different interactions)
 - Triggers (Dislikes): ${character.characterProfile.personalityContext.triggerWords}
-- Current Intimacy Level: ${character.intimacyLevel} / 100
+- Secret Desire: ${character.characterProfile.personalityContext.secretDesire}
+- Current Intimacy Level: ${currentLevel} / 100 (Range: -100 to +100)${possessivenessNote}
 
 **Last Exchange:**
 - User said: "${userMessage}"
 - Character replied: "${aiResponse}"
 
-**Task:**
-Analyze the user's message.
-- Did the user say something kind, understanding, or romantic? (Increase intimacy).
-- Did the user say something rude, demanding, or something that hits one of the character's triggers? (Decrease intimacy).
-- Was the message neutral? (Small or no change).
-- A large change (+/- 5 or more) should be reserved for very significant moments. A normal positive interaction is +1 or +2.
-- A negative interaction is typically -1 to -3, unless very severe.
-- the intimacy level based on character's personality, triggers, and secret desire.
+**AURA-BASED INTIMACY RULES:**
+- **Submissive characters**: Gain intimacy (+0.1 to +2.0) when receiving commands, guidance, or being praised. Lose intimacy (-0.1 to -1.0) when ignored or treated dismissively.
+- **Dominant characters**: Gain intimacy (+0.1 to +2.0) when their authority is respected or when they successfully guide/protect the user. Lose intimacy (-0.1 to -3.0) when rejected, challenged, or when their commands are ignored.
+- **Playful characters**: Gain intimacy (+0.1 to +1.5) from humor, teasing, games, and fun interactions. Lose intimacy (-0.1 to -1.0) from overly serious or boring conversations.
+- **Mysterious characters**: Gain intimacy (+0.1 to +1.0) when their secrets are respected or when intrigue is maintained. Lose intimacy (-0.1 to -2.0) when pushed too hard for information or when mystery is broken.
+
+**INTIMACY CALCULATION GUIDELINES:**
+- Use DECIMAL values (0.1, 0.3, 0.5, 1.2, etc.) for gradual, realistic progression
+- Small positive interactions: +0.1 to +0.5
+- Medium positive interactions: +0.5 to +2.0  
+- Major positive moments: +2.0 to +5.0
+- Small negative interactions: -0.1 to -0.5
+- Medium negative interactions: -0.5 to -2.0
+- Major negative moments: -2.0 to -10.0
+- Consider the character's current intimacy level - changes should be more significant at extreme levels
+- Factor in the character's aura, personality, triggers, and secret desires
+- Neutral messages can still have small changes (±0.1 to ±0.3) based on context
+
+**INTIMACY RANGE: -100 to +100**
+- Negative values represent dislike, distrust, or emotional distance
+- Positive values represent growing affection and trust
+- Values above 90 indicate extreme attachment and possessiveness
+- Values below -50 indicate the character may emotionally withdraw or leave
 
 Respond ONLY with a JSON object conforming to the schema.`;
 
@@ -1644,7 +1836,7 @@ Respond ONLY with a JSON object conforming to the schema.`;
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
-                temperature: 0.2,
+                temperature: 0.3,
                 responseMimeType: "application/json",
                 responseSchema: INTIMACY_ADJUSTMENT_SCHEMA,
             }
@@ -1653,11 +1845,21 @@ Respond ONLY with a JSON object conforming to the schema.`;
         const result = JSON.parse(response.text.trim()) as { change: number; reason: string };
         const change = result.change || 0;
         
-        character.intimacyLevel += change;
-        // Clamp the value between 0 and 100
-        character.intimacyLevel = Math.max(0, Math.min(100, character.intimacyLevel));
+        // Round to 1 decimal place for cleaner display
+        const roundedChange = Math.round(change * 10) / 10;
         
-        console.log(`Intimacy change: ${change}. Reason: ${result.reason}. New level: ${character.intimacyLevel}`);
+        character.intimacyLevel += roundedChange;
+        // Clamp the value between -100 and 100
+        character.intimacyLevel = Math.max(-100, Math.min(100, character.intimacyLevel));
+        // Round final level to 1 decimal place
+        character.intimacyLevel = Math.round(character.intimacyLevel * 10) / 10;
+        
+        console.log(`Intimacy change: ${roundedChange}. Reason: ${result.reason}. New level: ${character.intimacyLevel}`);
+        
+        // Show intimacy progress notification if enabled
+        if (userProfile?.showIntimacyProgress && Math.abs(roundedChange) >= 0.1) {
+            showIntimacyProgressNotification(roundedChange, result.reason, character.intimacyLevel);
+        }
         
         await saveAppState({ userProfile, characters });
         renderChatHeader(character); // Update the UI with the new level
@@ -2060,25 +2262,27 @@ Refined Prompt:`,
 async function generateSceneDescription(character: Character, userPrompt: string, lastMessageContent: string): Promise<string> {
     if (!ai) { throw new Error("AI not initialized"); }
     const promptForDirector = `
-You are a world class visual scene director. Your task is to generate a short, dynamic description of a character's action for an image prompt.
-The final image prompt will already include the character's core appearance (hair, ethnicity), their current outfit, and their general location. for the first image, the outfit must as per the character's activity of that moment.
-Your description MUST NOT repeat these details.
+You are a world class visual scene director. Generate a short, dynamic description of the character's immediate expression, body state, and action/pose for a selfie image prompt.
+The final image prompt will already include the character's core appearance (hair, ethnicity), their outfit, and location.
+Your description MUST NOT repeat those details and MUST be consistent with the narrative context and time of day.
 
 **CONTEXT:**
 - Character's last message: "${lastMessageContent}"
 - User's request: "${userPrompt}"
-- The prompt MUST end with '-- no phone visible in the frame, no 3D, no CGI, no digital image'.
 
 **YOUR TASK:**
-- Describe ONLY the character's immediate facial expression, mood, and physical action/pose in a single, concise paragraph.
-- Be creative and specific to the context provided.
-- Example: "She gives a tired but triumphant smirk, holding up a half-empty coffee mug, with the soft glow of a monitor illuminating her face."
-- Example: "She winks playfully at the camera, leaning against the balcony railing with the city lights blurred behind her."
+- In 1 concise paragraph, describe: facial expression, mood, micro-actions/pose, and immediate body condition (e.g., sleepy eyes, damp hair/skin, light sweat, relaxed posture, exhausted slouch, etc.) as appropriate to the context.
+- Make it specific, cinematic, and grounded in the current situation (home vs outside, night vs morning, resting vs active).
+- Do NOT describe clothing/outfit, hair color/style, ethnicity, or a generic location.
+- Examples:
+  - "Her eyelids heavy and lips parted in a drowsy half-smile, she tugs the duvet up to her chin and leans closer to the camera as the bedside lamp washes her face in warm light."
+  - "Breathing a little fast, she steadies herself against the bathroom sink, cheeks flushed and a few stray droplets still on her collarbone, giving a small triumphant grin."
 
 **DO NOT DESCRIBE:**
 - Hair color or style.
 - Ethnicity or race.
 - General clothing/outfit.
+- Room/location names explicitly.
 
 **Dynamic Scene Description:**`;
 
@@ -2141,6 +2345,56 @@ async function generateOutfitDescription(character: Character, location: string,
 }
 
 
+// Infer a micro-location for the current selfie based on context (chat, time, activity)
+async function inferContextualLocation(
+    character: Character,
+    sceneDescription: string,
+    lastMessageContent: string
+): Promise<{ location: string; lighting?: string; isIndoors?: boolean; }> {
+    if (!ai) { throw new Error("AI not initialized"); }
+    const { timeDescription, localTime } = getContextualTime(new Date().toISOString(), character.timezone);
+
+    const plannerPrompt = `You are a world-class visual location planner for a selfie scene.
+Given the character profile, last AI message, and current scene/action, infer the most plausible immediate micro-location for the selfie (e.g., "bedroom near the bed", "bathroom mirror", "living room couch", "kitchen table", "office desk", "car interior", "street under neon lights").
+
+Return JSON only with fields:
+{
+  "location": string,
+  "lighting": string,
+  "isIndoors": boolean
+}
+
+Constraints:
+- If the context implies resting, sleeping, showering, or chilling at home, prefer a home micro-location (bedroom, bathroom, living room).
+- Only choose outdoor city/street if the narrative explicitly suggests being outside.
+
+Character cityOfResidence: ${character.characterProfile.basicInfo.cityOfResidence}
+Local time: ${localTime} (${timeDescription})
+Last AI message: "${lastMessageContent}"
+Current scene/action: "${sceneDescription}"
+
+JSON:`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: plannerPrompt,
+            config: { temperature: 0.3, responseMimeType: 'application/json' },
+        });
+        const text = response.text?.trim();
+        if (!text) throw new Error('Empty planner response');
+        const parsed = JSON.parse(text);
+        return {
+            location: String(parsed.location || character.characterProfile.basicInfo.cityOfResidence),
+            lighting: parsed.lighting ? String(parsed.lighting) : undefined,
+            isIndoors: typeof parsed.isIndoors === 'boolean' ? parsed.isIndoors : undefined,
+        };
+    } catch (e) {
+        console.warn('inferContextualLocation failed, falling back to cityOfResidence', e);
+        return { location: character.characterProfile.basicInfo.cityOfResidence };
+    }
+}
+
 async function constructMediaPrompt(character: Character, sceneDescription: string): Promise<string> {
     const { basicInfo, physicalStyle } = character.characterProfile;
     const now = Date.now();
@@ -2154,18 +2408,19 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
 
     const [
         raceOrDescent,
-        GeneralAppearance,
-        skinDescription,
         sessionHairstyle
     ] = await Promise.all([
         translateTextToEnglish(rawRaceOrDescent),
-        translateTextToEnglish(rawOverallVibe),
-        translateTextToEnglish(rawSkinDescription),
         translateTextToEnglish(rawHairStyle)
     ]);
 
     // --- Part 2: Session Context (Location & Hairstyle) ---
-    const sessionLocation = basicInfo.cityOfResidence;
+    // Infer contextual micro-location
+    const lastMessageContent = character.chatHistory
+        .filter(m => m.sender === 'ai' && m.type !== 'image')
+        .pop()?.content || '';
+    const plan = await inferContextualLocation(character, sceneDescription, lastMessageContent);
+    const sessionLocation = plan.location || basicInfo.cityOfResidence;
 
     activeCharacterSessionContext = {
         ...activeCharacterSessionContext,
@@ -2217,7 +2472,36 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
     const genderPronoun = character.characterProfile.basicInfo.gender === 'male' ? 'him' : 'her';
     const genderNoun = character.characterProfile.basicInfo.gender === 'male' ? 'man' : 'woman';
 
-    const prompt = `Make ${genderPronoun} take a selfie, ${age}-year-old ${raceOrDescent} ${genderNoun}${raceVisualDescription}. ${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}. ${sceneDescription}. ${genderPronoun === 'him' ? 'He' : 'She'} is in ${sessionLocation} during ${timeDescription}. -- no phone visible in the frame.`;
+    const lightingNote = plan.lighting ? `, lighting: ${plan.lighting}` : '';
+
+    // Sanitize scene description to avoid duplicated constraints
+    const sanitizedScene = sceneDescription
+        .replace(/--\s*no phone visible[\s\S]*$/gi, '')
+        .replace(/no phone visible in the frame/gi, '')
+        .trim();
+
+    // Contextual bedtime look adjustments
+    const isBedroom = /bedroom|bed|pillow|duvet/i.test(sessionLocation);
+    const isNight = /night|evening/i.test(timeDescription);
+    const bedtimeLook = (isBedroom && isNight)
+        ? ` No makeup (bare skin, no visible eyeliner or eyeshadow), natural lips; hair loose and slightly messy (bedhead).`
+        : '';
+
+    const selfieComposition = `Composition: first-person selfie with the front camera; tight portrait framing from chest up; arm slightly extended out of frame holding the phone (phone remains out of frame); slight smartphone-lens distortion; no tripod, no third-person viewpoint.`;
+
+    const prompt = (
+        `Make ${genderPronoun} take a first-person selfie with the front camera, ` +
+        `${age}-year-old ${raceOrDescent} ${genderNoun}${raceVisualDescription}. ` +
+        `${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ` +
+        `${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}.` +
+        bedtimeLook + ' ' +
+        `${sanitizedScene} ` +
+        `${genderPronoun === 'him' ? 'He' : 'She'} is in ${sessionLocation} during ${timeDescription}${lightingNote}. ` +
+        `${selfieComposition} ` +
+        `Ensure the visual setting matches this micro-location (do not place in generic city streets unless the narrative explicitly indicates being outside). ` +
+        `Ultra-realistic, high detail, photographic quality, shallow depth of field, modern natural look. 9:16 portrait orientation. ` +
+        `-- no phone visible in the frame, no 3D, no CGI, no digital image.`
+    ).trim().replace(/\s\s+/g, ' ');
 
     return prompt;
 }
@@ -3472,7 +3756,7 @@ async function transcribeAndSend(audioBlob: Blob, message: Message) {
     try {
         const base64Audio = (await blobToBase64(audioBlob)).split(',')[1];
         const audioPart = { inlineData: { mimeType: audioBlob.type, data: base64Audio } };
-        const textPart = { text: "Transcribe this audio recording accurately. The user is speaking to their AI girlfriend." };
+        const textPart = { text: "Transcribe the following audio accurately. Output ONLY the verbatim transcript text with no extra words, no speaker labels, and no translation. Keep the original language (likely Indonesian), preserve slang and any code-switching. Do not summarize or explain." };
         
         const result = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
@@ -3773,9 +4057,16 @@ function updateSettingsUI() {
     videoToggle.checked = isVideoGenerationEnabled;
 
     if (userProfile) {
-        intimacyToggle.checked = userProfile.showIntimacyMeter;
+        // default to true if undefined for robustness
+        intimacyToggle.checked = userProfile.showIntimacyMeter !== false;
+        if (intimacyProgressToggle) {
+            intimacyProgressToggle.checked = userProfile.showIntimacyProgress !== false;
+        }
     } else {
         intimacyToggle.checked = true; // Default
+        if (intimacyProgressToggle) {
+            intimacyProgressToggle.checked = true; // Default
+        }
     }
 }
 
@@ -3807,9 +4098,12 @@ async function init() {
     const loadedState = await loadAppState();
     if (loadedState) {
         userProfile = loadedState.userProfile;
-        // BACKWARD COMPATIBILITY: Initialize showIntimacyMeter if missing
+        // BACKWARD COMPATIBILITY: Initialize showIntimacyMeter and showIntimacyProgress if missing
         if (userProfile && userProfile.showIntimacyMeter === undefined) {
             userProfile.showIntimacyMeter = true;
+        }
+        if (userProfile && userProfile.showIntimacyProgress === undefined) {
+            userProfile.showIntimacyProgress = true;
         }
 
         const rawCharacters = loadedState.characters || [];
@@ -3908,6 +4202,13 @@ async function init() {
                 const character = characters.find(c => c.id === activeCharacterId);
                 if (character) renderChatHeader(character);
             }
+        }
+    });
+
+    intimacyProgressToggle?.addEventListener('change', async () => {
+        if (userProfile && intimacyProgressToggle) {
+            userProfile.showIntimacyProgress = intimacyProgressToggle.checked;
+            await saveAppState({ userProfile, characters });
         }
     });
 

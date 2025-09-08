@@ -9,8 +9,9 @@ import * as db from './dbServices';
 // --- TYPES (Copied from index.tsx to avoid circular dependencies) ---
 interface UserProfile {
   name: string;
-  // FIX: Added missing property to match the definition in index.tsx.
-  showIntimacyMeter: boolean;
+  gender?: string;
+  showIntimacyMeter?: boolean;
+  showIntimacyProgress?: boolean;
 }
 
 interface CharacterProfile {
