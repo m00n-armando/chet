@@ -4,7 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ---CHET v.2.1.2---
+// ---CHET v.2.1.3---
+// Changelog v.2.1.3:
+// - Replaced full-screen loading indicator with a local loading indicator for user-sent images.
+// - Improved image viewer: added double-tap to reset zoom, always visible controls, and persistent prompt panel during zoom.
 // Changelog v.2.1.2:
 // - AI now aware of transgender definitions for improved roleplay and narration.
 // - Replaced `{{user}}` with dynamic user name for personalization.
@@ -16,21 +19,6 @@
 // - Fix black gap at bottom of mobile screen
 // Changelog v.2.1.0:
 // - update roleplay rules
-// Changelog v.2.0.4:
-// - Made reference gallery thumbnails smaller (50x50) for better memory efficiency.
-// - Removed fantasy world parameter from avatar prompt to make it more real-world oriented.
-// - Adjusted race visual descriptions to be less fantasy and more subtle for real-world diversity.
-// - Updated character generation to prioritize location based on ethnicity.
-// - Updated version to 2.0.4 for deployment.
-// Changelog v.2.0.3:
-// - Updated avatar prompt to include race information in a more explicit format.
-// - Added thumbnail generation for reference gallery images to save memory space.
-// - Updated version to 2.0.3 for deployment.
-// Changelog v.2.0.2:
-// - Fixed character profile generation to include race information in AI prompts.
-// - Updated profession generation to be appropriate for fantasy races.
-// - Added explicit fantasy world context to character generation prompts.
-// - Updated version to 2.0.2 for deployment.
 
 import { GoogleGenAI, Type, Chat, HarmBlockThreshold, HarmCategory, GenerateContentResponse, Modality, Part } from "@google/genai";
 import { saveAppState, loadAppState, blobToBase64, base64ToBlob } from './storageServices';
@@ -303,6 +291,7 @@ let initialPinchDistance = 0;
 let lastScale = 1;
 let lastTouchX = 0;
 let lastTouchY = 0;
+let lastTapTime = 0; // Added for double-tap detection
 
 
 // --- DOM ELEMENTS ---
@@ -622,6 +611,49 @@ function migrateCharacter(character: Character): Character {
         
         // Flag the character so the user knows to use the "AI Refine" feature.
         character.needsRefinement = true;
+    }
+
+    // Ensure characterProfile is always initialized, even if it was missing and not migrated from a sheet
+    if (!character.characterProfile) {
+        console.warn(`Character ${character.id} has no characterProfile. Initializing with default values.`);
+        character.characterProfile = {
+            basicInfo: {
+                name: character.characterProfile?.basicInfo?.name || 'Unknown', // Try to preserve name if available
+                username: 'unknown_user',
+                bio: 'A character with an incomplete profile. Please edit to fill in details.',
+                age: 20,
+                zodiac: 'Unknown',
+                ethnicity: 'Unknown',
+                gender: 'female',
+                race: 'human',
+                cityOfResidence: 'Unknown',
+                aura: 'Unknown',
+                roles: 'new acquaintance',
+            },
+            physicalStyle: {
+                bodyType: 'Average',
+                hairColor: 'Black',
+                hairStyle: ['Short'],
+                eyeColor: 'Brown',
+                skinTone: 'Fair',
+                breastAndCleavage: 'Modest',
+                clothingStyle: ['Casual'],
+                accessories: 'None',
+                makeupStyle: 'Natural',
+                overallVibe: 'A calm and collected individual.',
+            },
+            personalityContext: {
+                personalityTraits: 'Quiet, observant.',
+                communicationStyle: 'Direct and to the point.',
+                backgroundStory: 'Their past is an enigma, waiting to be uncovered through conversation.',
+                fatalFlaw: 'Trusts too easily.',
+                secretDesire: 'To find a place where they belong.',
+                profession: 'Unknown',
+                hobbies: 'Reading',
+                triggerWords: 'Lies, betrayal.',
+            }
+        };
+        character.needsRefinement = true; // Flag for user to refine
     }
     return character;
 }
@@ -1714,7 +1746,7 @@ async function handleSaveCharacter() {
     const initialIntimacy = ROLE_TO_INTIMACY_MAP[profile.basicInfo.roles.toLowerCase()] || 10;
     
     const newCharacter: Character = {
-        id: `char_${Date.now()}`,
+        id: `char_${Date.now()}_${crypto.randomUUID()}`, // More robust unique ID
         avatar: characterCreationPreview.avatar,
         avatarPrompt: characterCreationPreview.avatarPrompt,
         characterProfile: profile,
@@ -3861,22 +3893,56 @@ async function handlePhotoUpload(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (!file) return;
 
-    showLoading('Preparing your photo...');
+    const isoTimestamp = new Date().toISOString();
+    const tempMessage: Message = {
+        sender: 'user',
+        content: 'Uploading image...', // Temporary content
+        timestamp: isoTimestamp,
+        type: 'image',
+        imageDataUrl: '', // Placeholder for now
+    };
+
+    // Append a loading bubble immediately
+    const loadingBubble = appendMessageBubble(tempMessage);
+    loadingBubble.classList.add('loading-image'); // Add a class to style the loading state
+
     try {
         const base64Image = await blobToBase64(file);
         
-        const isoTimestamp = new Date().toISOString();
-        const userMessage: Message = {
-            sender: 'user',
-            content: '[User sent an image]',
-            timestamp: isoTimestamp,
-            type: 'image',
-            imageDataUrl: base64Image,
-        };
+        // Update the message object with the actual image data
+        tempMessage.content = '[User sent an image]';
+        tempMessage.imageDataUrl = base64Image;
 
-        character.chatHistory.push(userMessage);
-        appendMessageBubble(userMessage);
+        character.chatHistory.push(tempMessage); // Push the updated message
         await saveAppState({ userProfile, characters });
+
+        // Remove the loading class and update the bubble content
+        loadingBubble.classList.remove('loading-image');
+        const imgElement = loadingBubble.querySelector('img');
+        if (imgElement) {
+            imgElement.src = base64Image;
+        } else {
+            // If no img element, create one
+            const newImg = document.createElement('img');
+            newImg.src = base64Image;
+            newImg.alt = 'User uploaded image';
+            loadingBubble.innerHTML = ''; // Clear "Uploading image..." text
+            loadingBubble.appendChild(newImg);
+        }
+        // Re-add click listener for the new image element
+        loadingBubble.querySelector('img')?.addEventListener('click', () => {
+            openImageViewer({
+                imageDataUrl: base64Image,
+                promptText: tempMessage.content,
+            });
+        });
+        
+        // Ensure timestamp is visible
+        const timestampSpan = document.createElement('div');
+        timestampSpan.className = 'timestamp';
+        timestampSpan.textContent = formatTimestamp(isoTimestamp);
+        loadingBubble.appendChild(timestampSpan);
+
 
         await generateAIResponse({
             text: '[System: You see the image I just sent. What do you think?]',
@@ -3885,11 +3951,13 @@ async function handlePhotoUpload(e: Event) {
 
     } catch (error) {
         console.error('Photo upload failed:', error);
+        loadingBubble.innerHTML = `<span class="message-content">Failed to upload photo.</span>`;
+        loadingBubble.classList.remove('loading-image');
+        loadingBubble.classList.add('error');
         alert('Could not process the photo. Please try again.');
     } finally {
         // Reset file input to allow uploading the same file again
         (e.target as HTMLInputElement).value = '';
-        hideLoading();
     }
 }
 

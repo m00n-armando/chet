@@ -595,6 +595,7 @@ select option {
     background: transparent;
     padding: 0;
     max-width: 65%; /* Adjust as needed */
+    position: relative; /* For positioning loading spinner */
 }
 .message-bubble.image img {
     width: 100%;
@@ -613,6 +614,30 @@ select option {
 }
 .message-bubble.ai.image img {
     border-bottom-left-radius: 4px;
+}
+
+/* Loading state for user image bubble */
+.message-bubble.loading-image {
+    background-color: var(--user-bubble-bg);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100px; /* Ensure it has some height */
+    padding: 1rem;
+    color: var(--text-secondary-color);
+    font-size: 0.9rem;
+}
+
+.message-bubble.loading-image::before {
+    content: '';
+    width: 30px;
+    height: 30px;
+    border: 3px solid var(--border-color);
+    border-bottom-color: var(--primary-color);
+    border-radius: 50%;
+    display: inline-block;
+    animation: rotation 1s linear infinite;
+    margin-right: 0.5rem;
 }
 
 
@@ -1496,12 +1521,34 @@ input:checked + .slider:before {
     max-width: none;
     border-radius: 0;
     border: none;
+    /* Keep flex-direction as row for desktop, column for mobile */
+    flex-direction: row; /* Default for desktop */
 }
 .image-viewer.fullscreen .viewer-details-panel {
-    display: none;
+    /* Keep visible */
+    display: flex; /* Ensure it's a flex container for its content */
+    flex: 0 0 280px; /* Give it a fixed width on desktop */
+    border-left: 1px solid var(--border-color);
 }
 .image-viewer.fullscreen .viewer-image-container {
-    flex: 1;
+    flex: 1; /* Take remaining space */
+}
+
+/* Mobile adjustments for fullscreen */
+@media (max-width: 768px) {
+    .image-viewer.fullscreen {
+        flex-direction: column; /* Stack vertically on mobile */
+    }
+    .image-viewer.fullscreen .viewer-image-container {
+        flex: 1;
+        max-height: 70vh; /* Adjust as needed for mobile screen */
+    }
+    .image-viewer.fullscreen .viewer-details-panel {
+        flex: none;
+        max-height: 30vh; /* Adjust as needed for mobile screen */
+        border-left: none;
+        border-top: 1px solid var(--border-color);
+    }
 }
 .viewer-image-container {
     flex: 3;
@@ -1532,12 +1579,10 @@ input:checked + .slider:before {
     padding: 10px;
     border-radius: 25px;
     backdrop-filter: blur(10px);
-    opacity: 0;
+    opacity: 1; /* Always visible */
     transition: opacity 0.3s ease;
 }
-.viewer-image-container:hover .viewer-image-actions {
-    opacity: 1;
-}
+/* Removed hover effect as buttons are always visible */
 .image-action-btn {
     background: none;
     border: none;
