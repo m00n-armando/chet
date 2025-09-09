@@ -3288,18 +3288,20 @@ function downloadImage() {
     const link = document.createElement('a');
     link.href = viewerImg.src;
     const mediaId = modals.imageViewer.dataset.currentMediaId;
-    let downloadName = 'chet_image.png';
+    let downloadName = 'CHET_image.png'; // Add prefix to default
     if (activeCharacterId) {
         const character = characters.find(c => c.id === activeCharacterId);
         if (character) {
             const charName = character.characterProfile.basicInfo.name.replace(/\s/g, '_');
             if (mediaId === 'ephemeral') {
-                downloadName = `0_${charName}.png`;
+                // This is the avatar
+                downloadName = `CHET_${charName}_avatar.png`;
             } else if (mediaId) {
                 const media = character.media.find(m => m.id === mediaId);
                 if (media) {
-                    const id = parseInt(media.id);
-                    downloadName = `${id}_${charName}.png`;
+                    // Use a simple index for a cleaner filename
+                    const mediaIndex = character.media.indexOf(media);
+                    downloadName = `CHET_${charName}_${mediaIndex}.png`;
                 }
             }
         }
@@ -4504,6 +4506,10 @@ async function init() {
 
         try {
             const zip = new JSZip();
+            const chetFolder = zip.folder('CHET');
+            if (!chetFolder) {
+                throw new Error("Could not create CHET folder in ZIP.");
+            }
             const exportableState = JSON.parse(JSON.stringify({ userProfile, characters }));
 
             // Collect all media files
@@ -4570,11 +4576,11 @@ async function init() {
             }
 
             // Add JSON data to ZIP
-            zip.file('data.json', JSON.stringify(exportableState, null, 2));
+            chetFolder.file('data.json', JSON.stringify(exportableState, null, 2));
 
             // Add media files to ZIP
             for (const mediaFile of mediaFiles) {
-                zip.file(mediaFile.path, mediaFile.data, { binary: true });
+                chetFolder.file(mediaFile.path, mediaFile.data, { binary: true });
             }
 
             // Generate ZIP file
