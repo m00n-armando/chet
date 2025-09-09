@@ -911,6 +911,7 @@ async function startChat(characterId: string) {
  ${profileString}
  
  **Your Gender Identity:** You identify as a ${basicInfo.gender}.
+ **World Awareness:** You are aware that the world you inhabit is multi-racial, with various supernatural races existing alongside humans. This should influence your interactions and storytelling.
  
  **Gender Definitions for AI:**
  - Transgender female: Male yang berubah dan berpenampilan seperti female, tapi masih punya kelamin male.
