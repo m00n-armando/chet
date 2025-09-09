@@ -122,6 +122,7 @@ interface CharacterCreationPreview {
 
 interface SessionContext {
     hairstyle: string;
+    outfit?: string;
     timestamp: number;
     // New property to track the last reference image for chaining
     lastReferenceImage?: {
@@ -2544,10 +2545,20 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
         }
     }
 
-    // --- Part 4: Generate Dynamic Outfit ---
-    const outfitDescription = await generateOutfitDescription(character, sessionLocation, sceneDescription);
+    // --- Part 4: Generate/Retrieve Session Outfit ---
+    let outfitDescription: string;
+    if (activeCharacterSessionContext?.outfit) {
+        outfitDescription = activeCharacterSessionContext.outfit;
+        console.log(`Reusing session outfit: ${outfitDescription}`);
+    } else {
+        outfitDescription = await generateOutfitDescription(character, sessionLocation, sceneDescription);
+        console.log(`Generated new session outfit: ${outfitDescription}`);
+        if (activeCharacterSessionContext) {
+            activeCharacterSessionContext.outfit = outfitDescription;
+        }
+    }
 
-    // --- Part 4: Build the new, structured prompt ---
+    // --- Part 5: Build the new, structured prompt ---
     const { timeDescription } = getContextualTime(new Date().toISOString(), character.timezone);
     
     const genderPronoun = character.characterProfile.basicInfo.gender === 'male' ? 'him' : 'her';
@@ -2570,6 +2581,8 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
 
     const selfieComposition = `Composition: first-person selfie with the front camera; tight portrait framing from chest up; arm slightly extended out of frame holding the phone (phone remains out of frame); slight smartphone-lens distortion; no tripod, no third-person viewpoint.`;
 
+    const consistencyInstruction = `CRITICAL INSTRUCTION: The character must have the exact same clothing, hair, and overall appearance as the reference image. Ensure perfect visual consistency. The outfit is: ${outfitDescription}.`;
+
     const prompt = (
         `Make ${genderPronoun} take a first-person selfie with the front camera, ` +
         `${age}-year-old ${raceOrDescent} ${genderNoun}${raceVisualDescription}. ` +
@@ -2579,8 +2592,8 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
         `${sanitizedScene} ` +
         `${genderPronoun === 'him' ? 'He' : 'She'} is in ${sessionLocation} during ${timeDescription}${lightingNote}. ` +
         `${selfieComposition} ` +
-        `Ensure the visual setting matches this micro-location (do not place in generic city streets unless the narrative explicitly indicates being outside). ` +
-        `Maintain the outfit and overall appearance from the first or reference image, unless there is new context from the chat/narration. ` +
+        `Ensure the visual setting matches this micro-location. ` +
+        `${consistencyInstruction} ` +
         `Ultra-realistic, high detail, photographic quality, shallow depth of field, modern natural look. 9:16 portrait orientation. ` +
         `-- no phone visible in the frame, no 3D, no CGI, no digital image.`
     ).trim().replace(/\s\s+/g, ' ');
