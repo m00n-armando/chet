@@ -1530,7 +1530,7 @@ input:checked + .slider:before {
     display: none;
 }
 .image-viewer.fullscreen .viewer-image-container {
-    flex: 1; /* Take remaining space */
+    flex: 1 1 100%; /* Ensure it takes full width */
 }
 
 /* Mobile adjustments for fullscreen */
