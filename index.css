@@ -986,6 +986,8 @@ select option {
     text-align: center;
     border: 1px solid var(--border-color);
     position: relative;
+    max-height: 90vh; /* Limit height to 90% of viewport height */
+    overflow-y: auto; /* Enable vertical scrolling if content overflows */
 }
 .fullscreen-prompt-content {
     background: var(--surface-color);
