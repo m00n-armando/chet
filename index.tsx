@@ -4,7 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ---CHET v.2.1.5---
+// ---CHET v.2.1.6---
+// Changelog v.2.1.6:
+// - Refined AI prompt generation to prevent image creation failures.
+// - Added reference image display to the "Edit & Retry" modal for better context.
+// - Improved the reference image selection gallery with a clearer grid layout.
+// - Fixed a bug preventing images from displaying correctly after importing a `.zip` file.
+// - Enhanced the `.zip` export process to include all media types correctly.
 // Changelog v.2.1.5:
 // - Add innate power level systems to character.
 // - Add innate power AI mechanism auto trigger.
@@ -531,6 +537,8 @@ const characterEditorElements = {
     }
 };
 const imageRetryElements = {
+    referenceContainer: document.getElementById('retry-reference-container')! as HTMLDivElement,
+    referenceImg: document.getElementById('retry-reference-img')! as HTMLImageElement,
     textarea: document.getElementById('retry-prompt-textarea')! as HTMLTextAreaElement,
     regenerateBtn: document.getElementById('regenerate-image-btn')! as HTMLButtonElement,
     cancelBtn: document.getElementById('cancel-retry-btn')! as HTMLButtonElement,
@@ -2898,23 +2906,20 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         compositionInstruction = `Composition: from the user's viewpoint, looking directly at the character; tight portrait framing from chest up; shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.`;
     }
 
-    const consistencyInstruction = `CRITICAL INSTRUCTION: The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit is: ${outfitDescription} same or maintain as referance image before, except new context. Pose, expression, hairstyle, makeup, and immediate body condition (e.g., wet, sweaty, sleepy) should be dynamic and match the scene.`;
+    const consistencyInstruction = `The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit should be ${outfitDescription}, maintained from the reference image unless the new context requires a change. Pose, expression, hairstyle, makeup, and immediate body condition (e.g., wet, sweaty, sleepy) should be dynamic and match the scene's context.`;
 
     const promptText = (
-        `An ultra-realistic, high detail, photographic quality image of a ` +
-        `${age}-year-old ${raceOrDescent} ${genderNoun}${raceVisualDescription}. ` +
-        `The character MUST be wearing the clothing items explicitly specified in the chat, if any. ` +
-        `${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ` +
-        `${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}.` +
-        bedtimeLook + ' ' +
-        `${sanitizedScene} ` +
-        `${genderPronoun === 'him' ? 'He' : 'She'} is in ${sessionLocation} during ${timeDescription}${lightingNote}. ` +
+        `An ultra-realistic, high-detail, photographic quality image of a ${age}-year-old ${raceOrDescent} ${genderNoun}${raceVisualDescription}. ` +
+        `Her hair is ${sessionHairstyle}. ` +
+        `She is wearing: ${outfitDescription}. ` +
+        `${bedtimeLook} ` +
+        `${sanitizedScene}. ` +
+        `The scene is a ${sessionLocation} during the ${timeDescription}${lightingNote}. ` +
         `${compositionInstruction} ` +
-        `Ensure the visual setting matches this micro-location. ` +
-        `Prioritize clothing details mentioned in the chat. If the user explicitly requests a specific garment (e.g., "camisole"), ensure it is included in the generated image, unless context makes it completely inappropriate. ` +
         `${consistencyInstruction} ` +
+        `The visual setting must match this micro-location. ` +
         `9:16 portrait orientation. ` +
-        `-- no phone visible in the frame, no 3D, no CGI, no digital image.`
+        `-- no phone visible in the frame, no 3D, no CGI, no digital image, photographic realism.`
     ).trim().replace(/\s\s+/g, ' ');
 
     const parts: Part[] = [{ text: promptText }];
@@ -3286,9 +3291,19 @@ async function handleGenerateImageRequest(
         placeholder.classList.remove('loading');
         placeholder.classList.add('error');
         placeholder.dataset.failedPrompt = (finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '';
+        if (finalReferenceImage) {
+            placeholder.dataset.referenceImage = `data:${finalReferenceImage.mimeType};base64,${finalReferenceImage.base64Data}`;
+        }
         placeholder.innerHTML = `<p>Error: ${error.message || 'Image generation failed.'}</p><button class="retry-edit-btn">Edit & Retry</button>`;
         
         placeholder.querySelector('.retry-edit-btn')!.addEventListener('click', () => {
+            const referenceImageSrc = placeholder.dataset.referenceImage;
+            if (referenceImageSrc) {
+                imageRetryElements.referenceImg.src = referenceImageSrc;
+                imageRetryElements.referenceContainer.style.display = 'block';
+            } else {
+                imageRetryElements.referenceContainer.style.display = 'none';
+            }
             imageRetryElements.textarea.value = placeholder.dataset.failedPrompt || '';
             imageRetryElements.regenerateBtn.dataset.mediaId = mediaId;
             imageRetryElements.regenerateBtn.dataset.originalPrompt = originalPrompt;
@@ -4364,86 +4379,42 @@ async function openReferenceGallery(onSelect: (mediaData: { base64Data: string; 
     const character = characters.find(c => c.id === characterId);
     if (!character) return;
 
-    referenceGalleryElements.grid.innerHTML = '';
+    const grid = referenceGalleryElements.grid;
+    grid.innerHTML = ''; // Clear previous content
 
-    // Responsive settings
-    const isMobile = window.innerWidth <= 768;
-    const thumbSize = isMobile ? 30 : 40;
-    const itemsPerView = isMobile ? 6 : 4;
-    const itemWidth = thumbSize + 20; // 10px margin each side
-
-    // Create carousel container
-    const carouselContainer = document.createElement('div');
-    carouselContainer.className = 'reference-carousel-container';
-    carouselContainer.innerHTML = `
-        <button class="carousel-nav carousel-prev" aria-label="Previous"><</button>
-        <div class="reference-carousel">
-            <div class="reference-carousel-track"></div>
-        </div>
-        <button class="carousel-nav carousel-next" aria-label="Next">></button>
-    `;
-    referenceGalleryElements.grid.appendChild(carouselContainer);
-
-    const track = carouselContainer.querySelector('.reference-carousel-track') as HTMLElement;
-    const prevBtn = carouselContainer.querySelector('.carousel-prev') as HTMLButtonElement;
-    const nextBtn = carouselContainer.querySelector('.carousel-next') as HTMLButtonElement;
-
-    let currentIndex = 0;
-    let totalItems = 0;
-
-    // Add Avatar first
-    const avatarItem = document.createElement('div');
-    avatarItem.className = 'reference-carousel-item';
-    const avatarThumb = await createThumbnail(character.avatar, thumbSize, thumbSize);
-    avatarItem.innerHTML = `<img src="${avatarThumb}" alt="Character Avatar Reference">`;
-    avatarItem.addEventListener('click', () => {
-        const mimeType = character.avatar.match(/data:(.*);base64,/)?.[1] || 'image/png';
-        const base64Data = character.avatar.split(',')[1];
-        onSelect({ base64Data, mimeType, dataUrl: character.avatar });
-        modals.referenceGallery.style.display = 'none';
-    });
-    track.appendChild(avatarItem);
-    totalItems++;
-
-    // Add media gallery images
-    for (const media of character.media.filter(m => m.type === 'image').slice().reverse()) {
-        const dataUrl = media.data as string;
+    const createGridItem = async (label: string, dataUrl: string, isAvatar: boolean = false) => {
         const item = document.createElement('div');
-        item.className = 'reference-carousel-item';
-        const thumb = await createThumbnail(dataUrl, thumbSize, thumbSize);
-        item.innerHTML = `<img src="${thumb}" alt="Reference Image">`;
+        item.className = 'reference-grid-item';
+        
+        const thumb = await createThumbnail(dataUrl, 150, 150); // Larger thumbnails for grid
+        
+        item.innerHTML = `
+            <img src="${thumb}" alt="${label}">
+            <p>${label}</p>
+        `;
+        
         item.addEventListener('click', () => {
             const mimeType = dataUrl.match(/data:(.*);base64,/)?.[1] || 'image/png';
             const base64Data = dataUrl.split(',')[1];
             onSelect({ base64Data, mimeType, dataUrl });
             modals.referenceGallery.style.display = 'none';
         });
-        track.appendChild(item);
-        totalItems++;
-    }
-
-    // Carousel navigation
-    const updateCarousel = () => {
-        track.style.transform = `translateX(-${currentIndex * itemWidth}px)`;
-        prevBtn.disabled = currentIndex === 0;
-        nextBtn.disabled = currentIndex >= Math.max(0, totalItems - itemsPerView);
+        
+        return item;
     };
 
-    prevBtn.addEventListener('click', () => {
-        if (currentIndex > 0) {
-            currentIndex--;
-            updateCarousel();
-        }
-    });
+    // Add Avatar first
+    const avatarItem = await createGridItem('Avatar', character.avatar, true);
+    grid.appendChild(avatarItem);
 
-    nextBtn.addEventListener('click', () => {
-        if (currentIndex < Math.max(0, totalItems - itemsPerView)) {
-            currentIndex++;
-            updateCarousel();
-        }
-    });
-
-    updateCarousel();
+    // Add media gallery images
+    const imageMedia = character.media.filter(m => m.type === 'image').slice().reverse();
+    for (let i = 0; i < imageMedia.length; i++) {
+        const media = imageMedia[i];
+        const dataUrl = media.data as string;
+        const item = await createGridItem(`Post Image ${i + 1}`, dataUrl);
+        grid.appendChild(item);
+    }
 
     modals.referenceGallery.style.display = 'flex';
 }
@@ -4760,33 +4731,50 @@ async function init() {
                         // First, run the migration function to convert old formats
                         const importedChar = migrateCharacter(rawImportedChar);
 
+                        // Process avatar from ZIP
+                        if (typeof importedChar.avatar === 'string' && importedChar.avatar.startsWith('media/')) {
+                            const avatarFile = zipContent.file(importedChar.avatar);
+                            if (avatarFile) {
+                                const blob = await avatarFile.async('blob');
+                                importedChar.avatar = await blobToBase64(blob);
+                            }
+                        }
+                        
                         // Process media files from ZIP
                         if (importedChar.media && Array.isArray(importedChar.media)) {
                             for (const media of importedChar.media) {
                                 if (typeof media.data === 'string' && media.data.startsWith('media/')) {
-                                    // This is a file reference in the ZIP
                                     const mediaFile = zipContent.file(media.data);
                                     if (mediaFile) {
                                         const blob = await mediaFile.async('blob');
-                                        media.data = blob;
+                                        if (media.type === 'image') {
+                                            media.data = await blobToBase64(blob);
+                                        } else { // video
+                                            media.data = blob;
+                                        }
                                     }
                                 } else if (media.type === 'video' && typeof media.data === 'string' && media.data.startsWith('data:video')) {
-                                    // Legacy base64 video data
                                     const mimeType = media.data.match(/data:(.*);base64,/)?.[1] || 'video/mp4';
                                     media.data = base64ToBlob(media.data, mimeType);
                                 }
                             }
                         }
 
-                        // Process audio files in chat history from ZIP
+                        // Process chat history files from ZIP
                         if (importedChar.chatHistory) {
-                            for (let i = 0; i < importedChar.chatHistory.length; i++) {
-                                const msg = importedChar.chatHistory[i];
+                            for (const msg of importedChar.chatHistory) {
                                 if (msg?.type === 'voice' && typeof msg.audioDataUrl === 'string' && msg.audioDataUrl.startsWith('media/')) {
                                     const audioFile = zipContent.file(msg.audioDataUrl);
                                     if (audioFile) {
                                         const blob = await audioFile.async('blob');
                                         msg.audioDataUrl = await blobToBase64(blob);
+                                    }
+                                }
+                                if (msg?.type === 'image' && typeof msg.imageDataUrl === 'string' && msg.imageDataUrl.startsWith('media/')) {
+                                    const imageFile = zipContent.file(msg.imageDataUrl);
+                                    if (imageFile) {
+                                        const blob = await imageFile.async('blob');
+                                        msg.imageDataUrl = await blobToBase64(blob);
                                     }
                                 }
                             }
@@ -4883,6 +4871,14 @@ async function init() {
                 const originalChar = characters.find(c => c.id === character.id);
                 if (!originalChar) continue;
 
+                // Process avatar
+                if (originalChar.avatar && originalChar.avatar.startsWith('data:image')) {
+                    const blob = base64ToBlob(originalChar.avatar, originalChar.avatar.match(/data:(.*?);/)?.[1] || 'image/png');
+                    const fileName = `${character.id}_avatar.png`;
+                    mediaFiles.push({ path: `media/${fileName}`, data: blob, mimeType: 'image/png' });
+                    character.avatar = `media/${fileName}`;
+                }
+
                 // Process media files
                 for (const media of character.media) {
                     const originalMedia = originalChar.media.find(m => m.id === media.id);
@@ -4894,46 +4890,40 @@ async function init() {
                             blob = originalMedia.data;
                             mimeType = originalMedia.data.type || 'application/octet-stream';
                         } else if (typeof originalMedia.data === 'string' && originalMedia.data.startsWith('data:')) {
-                            // Convert base64 data URL to blob
                             const result = base64ToBlob(originalMedia.data, originalMedia.data.match(/data:(.*?);/)?.[1] || 'application/octet-stream');
                             blob = result;
                             mimeType = originalMedia.data.match(/data:(.*?);/)?.[1] || 'application/octet-stream';
                         } else {
-                            continue; // Skip invalid media
+                            continue;
                         }
 
                         const fileName = `${character.id}_${media.id}.${media.type === 'image' ? 'png' : 'mp4'}`;
                         mediaFiles.push({ path: `media/${fileName}`, data: blob, mimeType });
-
-                        // Update the export data to reference the file path instead of data
                         media.data = `media/${fileName}`;
                     }
                 }
 
-                // Process audio files in chat history
+                // Process chat history media
                 if (character.chatHistory) {
                     for (let i = 0; i < character.chatHistory.length; i++) {
+                        const msg = character.chatHistory[i];
                         const originalMsg = originalChar.chatHistory[i];
-                        if (originalMsg?.type === 'voice' && originalMsg.audioDataUrl) {
-                            let blob: Blob;
-                            let mimeType: string;
+                        if (!originalMsg) continue;
 
-                            if (originalMsg.audioDataUrl.startsWith('blob:')) {
-                                const response = await fetch(originalMsg.audioDataUrl);
-                                blob = await response.blob();
-                                mimeType = blob.type || 'audio/wav';
-                            } else if (originalMsg.audioDataUrl.startsWith('data:')) {
-                                blob = base64ToBlob(originalMsg.audioDataUrl, originalMsg.audioDataUrl.match(/data:(.*?);/)?.[1] || 'audio/wav');
-                                mimeType = originalMsg.audioDataUrl.match(/data:(.*?);/)?.[1] || 'audio/wav';
-                            } else {
-                                continue;
-                            }
-
+                        // Handle voice notes
+                        if (msg.type === 'voice' && originalMsg.audioDataUrl && originalMsg.audioDataUrl.startsWith('data:')) {
+                            const blob = base64ToBlob(originalMsg.audioDataUrl, originalMsg.audioDataUrl.match(/data:(.*?);/)?.[1] || 'audio/wav');
                             const fileName = `${character.id}_voice_${i}.wav`;
-                            mediaFiles.push({ path: `media/${fileName}`, data: blob, mimeType });
+                            mediaFiles.push({ path: `media/${fileName}`, data: blob, mimeType: 'audio/wav' });
+                            msg.audioDataUrl = `media/${fileName}`;
+                        }
 
-                            // Update the export data to reference the file path
-                            character.chatHistory[i].audioDataUrl = `media/${fileName}`;
+                        // Handle images
+                        if (msg.type === 'image' && originalMsg.imageDataUrl && originalMsg.imageDataUrl.startsWith('data:')) {
+                            const blob = base64ToBlob(originalMsg.imageDataUrl, originalMsg.imageDataUrl.match(/data:(.*?);/)?.[1] || 'image/png');
+                            const fileName = `${character.id}_chatimg_${i}.png`;
+                            mediaFiles.push({ path: `media/${fileName}`, data: blob, mimeType: 'image/png' });
+                            msg.imageDataUrl = `media/${fileName}`;
                         }
                     }
                 }
