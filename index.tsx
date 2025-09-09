@@ -863,8 +863,11 @@ async function startChat(characterId: string) {
     const character = characters.find(c => c.id === characterId);
     if (!character) {
         console.error("Character not found:", characterId);
+        // Log the current state of characters array for debugging
+        console.log("Current characters array:", characters);
         return;
     }
+    console.log("Character found:", character);
     
     // BACKWARD COMPATIBILITY: Initialize intimacy level for old characters
     if (character.intimacyLevel === undefined) {
@@ -1070,8 +1073,14 @@ function renderContacts() {
         return;
     }
     characters.forEach(char => {
-        const { name, age, ethnicity, aura, roles } = char.characterProfile.basicInfo;
-        const subtitle = `${age}, ${ethnicity}`;
+        // Defensive checks for characterProfile and basicInfo
+        const basicInfo = char.characterProfile?.basicInfo;
+        if (!basicInfo) {
+            console.warn(`Skipping character ${char.id} due to missing basicInfo.`);
+            return; // Skip this character if basicInfo is missing
+        }
+        const { name, age, ethnicity, aura, roles } = basicInfo;
+        const subtitle = `${age || 'N/A'}, ${ethnicity || 'N/A'}`;
 
         const item = document.createElement('div');
         item.className = 'contact-item';
