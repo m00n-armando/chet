@@ -1524,11 +1524,10 @@ input:checked + .slider:before {
     /* Keep flex-direction as row for desktop, column for mobile */
     flex-direction: row; /* Default for desktop */
 }
-.image-viewer.fullscreen .viewer-details-panel {
-    /* Keep visible */
-    display: flex; /* Ensure it's a flex container for its content */
-    flex: 0 0 280px; /* Give it a fixed width on desktop */
-    border-left: 1px solid var(--border-color);
+.image-viewer.fullscreen .viewer-details-panel,
+.image-viewer.fullscreen .viewer-image-actions,
+.image-viewer.fullscreen #close-viewer-btn {
+    display: none;
 }
 .image-viewer.fullscreen .viewer-image-container {
     flex: 1; /* Take remaining space */

@@ -3178,6 +3178,8 @@ function openImageViewer(options: { mediaId?: string; imageDataUrl?: string; pro
     transformY = 0;
     viewerImg.style.transform = `translate(${transformX}px, ${transformY}px) scale(${scale})`;
 
+    const modalContent = modals.imageViewer.querySelector('.modal-content') as HTMLElement;
+
     // Add click handler to image for fullscreen
     viewerImg.onclick = () => {
         fullscreenImage();
@@ -3185,7 +3187,6 @@ function openImageViewer(options: { mediaId?: string; imageDataUrl?: string; pro
 
     // Add back button handler for Android
     const handleBackButton = (e: PopStateEvent) => {
-        const modalContent = modals.imageViewer.querySelector('.modal-content') as HTMLElement;
         if (modalContent.classList.contains('fullscreen')) {
             e.preventDefault();
             fullscreenImage();
@@ -3193,12 +3194,9 @@ function openImageViewer(options: { mediaId?: string; imageDataUrl?: string; pro
     };
 
     // Add empty area click handler to exit fullscreen
-    const modalContent = modals.imageViewer.querySelector('.modal-content') as HTMLElement;
     const handleEmptyClick = (e: Event) => {
         const target = e.target as HTMLElement;
-        const modalContent = modals.imageViewer.querySelector('.modal-content') as HTMLElement;
-        if (modalContent.classList.contains('fullscreen') &&
-            target === modalContent) {
+        if (modalContent.classList.contains('fullscreen') && target === modalContent) {
             fullscreenImage();
         }
     };
@@ -5136,6 +5134,25 @@ init();
 // Touch event handlers (moved outside init for global access)
 function handleTouchStart(e: TouchEvent) {
     e.preventDefault(); // Prevent default scrolling/zooming
+
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300; // ms
+
+    if (e.touches.length === 1) {
+        if (now - lastTapTime < DOUBLE_TAP_DELAY) {
+            // Double tap detected
+            scale = 1;
+            transformX = 0;
+            transformY = 0;
+            viewerImg.style.transform = `translate(${transformX}px, ${transformY}px) scale(${scale})`;
+            lastTapTime = 0; // Reset tap time to prevent triple tap issues
+            isPanning = false;
+            viewerImg.classList.remove('panning');
+            return; // Exit to prevent starting a pan
+        }
+        lastTapTime = now;
+    }
+
     isPanning = true;
     viewerImg.classList.add('panning');
 
