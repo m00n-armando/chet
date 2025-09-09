@@ -4516,10 +4516,6 @@ async function init() {
 
         try {
             const zip = new JSZip();
-            const chetFolder = zip.folder('CHET');
-            if (!chetFolder) {
-                throw new Error("Could not create CHET folder in ZIP.");
-            }
             const exportableState = JSON.parse(JSON.stringify({ userProfile, characters }));
 
             // Collect all media files
@@ -4586,11 +4582,11 @@ async function init() {
             }
 
             // Add JSON data to ZIP
-            chetFolder.file('data.json', JSON.stringify(exportableState, null, 2));
+            zip.file('data.json', JSON.stringify(exportableState, null, 2));
 
             // Add media files to ZIP
             for (const mediaFile of mediaFiles) {
-                chetFolder.file(mediaFile.path, mediaFile.data, { binary: true });
+                zip.file(mediaFile.path, mediaFile.data, { binary: true });
             }
 
             // Generate ZIP file
