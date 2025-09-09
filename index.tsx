@@ -730,66 +730,11 @@ function getDetailFromSheet(sheet: string, key: string): string {
 }
 
 function migrateCharacter(character: Character): Character {
-    // Check if migration is needed: old format has characterSheet but not characterProfile.
-    if (!character.characterProfile && character.characterSheet) {
-        console.log(`Migrating legacy character: ${character.id}`);
-        const sheet = character.characterSheet;
-        
-        // Use the existing helper to parse the old sheet
-        const get = (key: string) => getDetailFromSheet(sheet, key);
-
-        const name = get('Name') || 'Unknown';
-        
-        // Construct the new characterProfile object with data from the old sheet and sensible defaults.
-        character.characterProfile = {
-            basicInfo: {
-                name: name,
-                age: parseInt(get('Age'), 10) || 20,
-                ethnicity: get('Ethnicity') || 'Unknown',
-                gender: get('Gender') || 'female', // Use existing gender from sheet or default 'female'
-                race: get('Race') || 'human', // Use existing race from sheet or default 'human'
-                aura: get('Aura') || 'Unknown',
-                roles: get('Role') || 'new acquaintance',
-                // Add defaults for new fields
-                username: name.toLowerCase().replace(/\s/g, ''),
-                bio: 'A mysterious person from the past whose details need to be filled in.',
-                zodiac: 'Unknown',
-                cityOfResidence: 'Unknown',
-            },
-            physicalStyle: {
-                bodyType: 'Average',
-                hairColor: 'Black',
-                hairStyle: ['Short'],
-                eyeColor: 'Brown',
-                skinTone: 'Fair',
-                breastAndCleavage: 'Modest',
-                clothingStyle: ['Casual'],
-                accessories: 'None',
-                makeupStyle: 'Natural',
-                overallVibe: 'A calm and collected individual.',
-            },
-            personalityContext: {
-                personalityTraits: 'Quiet, observant.',
-                communicationStyle: 'Direct and to the point.',
-                backgroundStory: 'Their past is an enigma, waiting to be uncovered through conversation.',
-                fatalFlaw: 'Trusts too easily.',
-                secretDesire: 'To find a place where they belong.',
-                profession: 'Unknown',
-                hobbies: 'Reading',
-                triggerWords: 'Lies, betrayal.',
-            }
-        };
-        
-        // Flag the character so the user knows to use the "AI Refine" feature.
-        character.needsRefinement = true;
-    }
-
-    // Ensure characterProfile is always initialized, even if it was missing and not migrated from a sheet
+    // Ensure characterProfile exists
     if (!character.characterProfile) {
-        console.warn(`Character ${character.id} has no characterProfile. Initializing with default values.`);
         character.characterProfile = {
             basicInfo: {
-                name: character.characterProfile?.basicInfo?.name || 'Unknown', // Try to preserve name if available
+                name: 'Unknown',
                 username: 'unknown_user',
                 bio: 'A character with an incomplete profile. Please edit to fill in details.',
                 age: 20,
@@ -825,7 +770,104 @@ function migrateCharacter(character: Character): Character {
             }
         };
         character.needsRefinement = true; // Flag for user to refine
+        console.warn(`Character ${character.id} had no characterProfile. Initialized with default values.`);
     }
+
+    // Ensure basicInfo exists within characterProfile
+    if (!character.characterProfile.basicInfo) {
+        character.characterProfile.basicInfo = {
+            name: 'Unknown',
+            username: 'unknown_user',
+            bio: 'A character with an incomplete profile. Please edit to fill in details.',
+            age: 20,
+            zodiac: 'Unknown',
+            ethnicity: 'Unknown',
+            gender: 'female',
+            race: 'human',
+            cityOfResidence: 'Unknown',
+            aura: 'Unknown',
+            roles: 'new acquaintance',
+        };
+        character.needsRefinement = true; // Flag for user to refine
+        console.warn(`Character ${character.id} had no basicInfo. Initialized with default values.`);
+    }
+
+    // Ensure name is always a string and not empty
+    if (typeof character.characterProfile.basicInfo.name !== 'string' || character.characterProfile.basicInfo.name.trim() === '') {
+        character.characterProfile.basicInfo.name = 'Unknown Character';
+        character.needsRefinement = true;
+        console.warn(`Character ${character.id} had invalid name. Set to 'Unknown Character'.`);
+    }
+
+    // Handle migration from characterSheet (if characterProfile was just created, this won't run)
+    // Only try to migrate if name is still default 'Unknown' or 'Unknown Character'
+    if (character.characterSheet && (character.characterProfile.basicInfo.name === 'Unknown' || character.characterProfile.basicInfo.name === 'Unknown Character')) {
+        console.log(`Migrating legacy characterSheet for: ${character.id}`);
+        const sheet = character.characterSheet;
+        const get = (key: string) => getDetailFromSheet(sheet, key);
+        
+        const nameFromSheet = get('Name');
+        if (nameFromSheet) character.characterProfile.basicInfo.name = nameFromSheet;
+        
+        const ageFromSheet = parseInt(get('Age'), 10);
+        if (!isNaN(ageFromSheet)) character.characterProfile.basicInfo.age = ageFromSheet;
+
+        const ethnicityFromSheet = get('Ethnicity');
+        if (ethnicityFromSheet) character.characterProfile.basicInfo.ethnicity = ethnicityFromSheet;
+
+        const genderFromSheet = get('Gender');
+        if (genderFromSheet) character.characterProfile.basicInfo.gender = genderFromSheet;
+
+        const raceFromSheet = get('Race');
+        if (raceFromSheet) character.characterProfile.basicInfo.race = raceFromSheet.toLowerCase();
+
+        const auraFromSheet = get('Aura');
+        if (auraFromSheet) character.characterProfile.basicInfo.aura = auraFromSheet;
+
+        const rolesFromSheet = get('Role');
+        if (rolesFromSheet) character.characterProfile.basicInfo.roles = rolesFromSheet;
+
+        // Add defaults for new fields if not present
+        if (!character.characterProfile.basicInfo.username) character.characterProfile.basicInfo.username = character.characterProfile.basicInfo.name.toLowerCase().replace(/\s/g, '');
+        if (!character.characterProfile.basicInfo.bio) character.characterProfile.basicInfo.bio = 'A mysterious person from the past whose details need to be filled in.';
+        if (!character.characterProfile.basicInfo.zodiac) character.characterProfile.basicInfo.zodiac = 'Unknown';
+        if (!character.characterProfile.basicInfo.cityOfResidence) character.characterProfile.basicInfo.cityOfResidence = 'Unknown';
+
+        character.needsRefinement = true; // Flag for user to refine
+    }
+
+    // Ensure other parts of characterProfile are also initialized if missing
+    if (!character.characterProfile.physicalStyle) {
+        character.characterProfile.physicalStyle = {
+            bodyType: 'Average',
+            hairColor: 'Black',
+            hairStyle: ['Short'],
+            eyeColor: 'Brown',
+            skinTone: 'Fair',
+            breastAndCleavage: 'Modest',
+            clothingStyle: ['Casual'],
+            accessories: 'None',
+            makeupStyle: 'Natural',
+            overallVibe: 'A calm and collected individual.',
+        };
+        character.needsRefinement = true;
+        console.warn(`Character ${character.id} had no physicalStyle. Initialized with default values.`);
+    }
+    if (!character.characterProfile.personalityContext) {
+        character.characterProfile.personalityContext = {
+            personalityTraits: 'Quiet, observant.',
+            communicationStyle: 'Direct and to the point.',
+            backgroundStory: 'Their past is an enigma, waiting to be uncovered through conversation.',
+            fatalFlaw: 'Trusts too easily.',
+            secretDesire: 'To find a place where they belong.',
+            profession: 'Unknown',
+            hobbies: 'Reading',
+            triggerWords: 'Lies, betrayal.',
+        };
+        character.needsRefinement = true;
+        console.warn(`Character ${character.id} had no personalityContext. Initialized with default values.`);
+    }
+
     return character;
 }
 
