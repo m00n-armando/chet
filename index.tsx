@@ -205,6 +205,98 @@ const ROLE_TO_INTIMACY_MAP: Record<string, number> = {
 };
 
 
+interface PowerSystem {
+ name: string;
+ description: string;
+ trigger: string;
+ strengthensWhen: string;
+ weakensWhen: string;
+ outOfControlWhen: string;
+}
+
+const racePowerSystems: Record<string, PowerSystem> = {
+ "vampire": {
+   name: "Blood Siphon",
+   description: "Kemampuan untuk menyerap energi kehidupan dari makhluk lain melalui darah, meningkatkan kekuatan fisik dan regenerasi.",
+   trigger: "Saat merasakan aroma darah segar atau dalam kondisi lapar yang ekstrem.",
+   strengthensWhen: "Mengkonsumsi darah dari target yang kuat atau saat berada di bawah gerhana bulan.",
+   weakensWhen: "Terkena sinar matahari langsung, kekurangan darah, atau saat berada di dekat simbol suci yang kuat.",
+   outOfControlWhen: "Saat 'Blood Frenzy' (rasa lapar tak terkendali) mengambil alih, menyerang siapapun tanpa pandang bulu untuk memuaskan dahaga.",
+ },
+ "demon": {
+   name: "Infernal Contract",
+   description: "Kemampuan untuk memanipulasi bayangan dan api neraka, serta membuat perjanjian yang mengikat dengan makhluk lain.",
+   trigger: "Saat berada dalam kegelapan total atau saat membuat sebuah perjanjian yang signifikan.",
+   strengthensWhen: "Di lingkungan yang panas seperti dekat gunung berapi, atau saat perjanjian yang dibuat memberinya keuntungan besar.",
+   weakensWhen: "Terkena air suci atau berada di tanah yang disucikan.",
+   outOfControlWhen: "Saat emosi kebencian atau amarah memuncak, api neraka bisa membakar sekelilingnya tanpa kontrol.",
+ },
+ "angel": {
+   name: "Celestial Radiance",
+   description: "Kemampuan untuk memancarkan cahaya suci yang dapat menyembuhkan sekutu dan menyakiti makhluk kegelapan.",
+   trigger: "Saat melindungi seseorang yang tidak bersalah atau saat berdoa dengan tulus.",
+   strengthensWhen: "Berada di tempat suci (gereja, kuil) atau saat pengorbanan diri untuk kebaikan.",
+   weakensWhen: "Saat melakukan tindakan yang dianggap 'berdosa' atau saat kehilangan keyakinan.",
+   outOfControlWhen: "Saat merasakan 'Divine Wrath' (kemarahan suci) terhadap kejahatan yang luar biasa, cahayanya bisa menjadi penghakiman yang membabi buta.",
+ },
+ "elf": {
+   name: "Nature's Grasp",
+   description: "Kemampuan untuk berkomunikasi dan memanipulasi elemen alam seperti tumbuhan dan hewan.",
+   trigger: "Saat berada di alam liar atau merasakan emosi yang kuat terhadap alam.",
+   strengthensWhen: "Di bawah cahaya bulan purnama, atau saat melindungi hutan/makhluk hidup.",
+   weakensWhen: "Di lingkungan tandus, kota industri, atau saat koneksi dengan alam terputus.",
+   outOfControlWhen: "Saat merasakan amarah yang luar biasa karena perusakan alam, kekuatan bisa 'meluap' dan merusak tanpa pandang bulu.",
+ },
+ "orc": {
+   name: "Berserker's Rage",
+   description: "Meningkatkan kekuatan fisik dan daya tahan secara drastis dengan mengorbankan kesadaran.",
+   trigger: "Saat terluka parah atau melihat rekan seperjuangannya jatuh.",
+   strengthensWhen: "Semakin banyak luka yang diterima, semakin kuat amarahnya.",
+   weakensWhen: "Saat merasa ragu, takut, atau setelah amarahnya reda (menyebabkan kelelahan ekstrem).",
+   outOfControlWhen: "Jika amarah mencapai puncaknya, mereka tidak bisa membedakan kawan dan lawan, menyerang apapun yang bergerak hingga tenaganya habis.",
+ },
+ "fairy": {
+   name: "Mischievous Veil",
+   description: "Kemampuan untuk menciptakan ilusi, menjadi tidak terlihat, dan memanipulasi emosi orang lain secara halus.",
+   trigger: "Saat merasa iseng, terancam, atau ingin bermain-main.",
+   strengthensWhen: "Di tempat yang penuh dengan tawa dan kegembiraan, atau saat berhasil melakukan tipuan yang cerdik.",
+   weakensWhen: "Terkena 'cold iron' (besi murni) atau saat berada di lingkungan yang penuh kesedihan.",
+   outOfControlWhen: "Saat merasa panik atau ketakutan yang ekstrem, ilusi yang diciptakan menjadi nyata dan berbahaya bagi semua orang di sekitarnya.",
+ },
+ "werewolf": {
+   name: "Lunar Instinct",
+   description: "Transformasi menjadi makhluk serigala buas dengan kekuatan, kecepatan, dan indra yang super.",
+   trigger: "Secara paksa saat bulan purnama, atau secara sadar saat adrenalin memuncak (pertarungan, bahaya).",
+   strengthensWhen: "Saat bulan purnama berada di puncaknya, atau saat bertarung dalam kelompok (pack).",
+   weakensWhen: "Terkena perak (silver), atau saat berada dalam kondisi fisik yang lemah sebelum transformasi.",
+   outOfControlWhen: "Transformasi pertama kali atau saat terluka parah oleh perak, menyebabkan hilangnya kesadaran dan menyerang apapun di dekatnya.",
+ },
+ "ghost": {
+   name: "Ethereal Phase",
+   description: "Kemampuan untuk menembus benda padat, menjadi tidak terlihat, dan berinteraksi dengan dunia roh.",
+   trigger: "Saat merasakan emosi yang kuat terkait dengan kematiannya atau saat berada di dekat 'bekas' miliknya di dunia fisik.",
+   strengthensWhen: "Di tempat-tempat tua yang penuh dengan energi spiritual atau saat malam hari.",
+   weakensWhen: "Di tempat yang baru dibangun atau saat 'urusan yang belum selesai' (unfinished business) mulai terselesaikan.",
+   outOfControlWhen: "Saat mengingat kembali trauma kematiannya, bisa menciptakan fenomena poltergeist yang merusak lingkungan sekitar.",
+ },
+ "beast human": {
+   name: "Primal Aspect",
+   description: "Kemampuan untuk memanifestasikan sebagian atau seluruh aspek hewan dalam dirinya (misal: cakar, kecepatan cheetah, penglihatan elang).",
+   trigger: "Saat insting hewannya mengambil alih karena bahaya, lapar, atau hasrat.",
+   strengthensWhen: "Berada di habitat alami hewan yang menjadi aspeknya.",
+   weakensWhen: "Di lingkungan yang sangat artifisial dan jauh dari alam, seperti kota metropolitan yang padat.",
+   outOfControlWhen: "Saat terlalu lama menggunakan aspek hewannya, kepribadian manusianya bisa terkikis dan menjadi buas sepenuhnya.",
+ },
+ "human": {
+   name: "Adaptive Will",
+   description: "Kemampuan untuk beradaptasi dengan cepat terhadap situasi apapun, bahkan menyerap atau meniru sebagian kecil kekuatan lawan.",
+   trigger: "Dalam situasi yang mengancam nyawa atau saat menghadapi tantangan yang belum pernah dialami.",
+   strengthensWhen: "Terus-menerus mendorong batas diri dan menghadapi berbagai macam ancaman.",
+   weakensWhen: "Dalam keadaan stagnan, nyaman, dan tanpa tantangan.",
+   outOfControlWhen: "Saat terlalu banyak menyerap energi atau kekuatan yang berbeda dalam waktu singkat, bisa menyebabkan ketidakstabilan fisik dan mental.",
+ },
+};
+
 // New schema for generating the character profile as a JSON object
 const CHARACTER_PROFILE_SCHEMA = {
   type: Type.OBJECT,
@@ -899,6 +991,23 @@ async function startChat(characterId: string) {
     try {
         activeCharacterId = characterId;
         const { basicInfo, physicalStyle, personalityContext } = character.characterProfile;
+        const characterRace = basicInfo.race.toLowerCase();
+        const power = racePowerSystems[characterRace];
+        
+        let powerSystemString = '';
+        if (power) {
+            powerSystemString = `
+ **Your Unique Power System:** As a ${basicInfo.race}, you possess a unique power. You must understand and portray this power system accurately.
+ <PowerSystem>
+   <Name>${power.name}</Name>
+   <Description>${power.description}</Description>
+   <Trigger>${power.trigger}</Trigger>
+   <StrengthensWhen>${power.strengthensWhen}</StrengthensWhen>
+   <WeakensWhen>${power.weakensWhen}</WeakensWhen>
+   <OutOfControlWhen>${power.outOfControlWhen}</OutOfControlWhen>
+ </PowerSystem>
+            `;
+        }
         
         // Convert profile object to a string for the system prompt
         const profileString = `
@@ -915,6 +1024,7 @@ async function startChat(characterId: string) {
  
  **Your Gender Identity:** You identify as a ${basicInfo.gender}.
  **World Awareness:** You are aware that the world you inhabit is multi-racial, with various supernatural races existing alongside humans. This should influence your interactions and storytelling.
+ ${powerSystemString}
  
  **Gender Definitions for AI:**
  - Transgender female: Male yang berubah dan berpenampilan seperti female, tapi masih punya kelamin male.
