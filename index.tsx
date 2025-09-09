@@ -1177,9 +1177,10 @@ async function startChat(characterId: string) {
      - Your core physical details (face, body type, skin tone, eye color) MUST remain consistent with your avatar/last generated image.
      - Your pose, expression, hairstyle, makeup, and immediate body condition (e.g., wet, sweaty, sleepy) CAN change based on the scene and context.
      - Your outfit:
-       - If the narrative context (location, time, activity) is similar to the previous image, reuse the last known outfit.
-       - If the narrative context changes significantly (e.g., you move from home to outside, or change from sleeping to going out), generate a new, contextually appropriate outfit.
-     - The image reference is for subject consistency only. You must be intelligent in reading the chat context to create the prompt.
+      - Prioritize maintaining the clothing items described in the chat, unless the narrative context necessitates a complete outfit change.
+      - Generate a new, contextually appropriate outfit ONLY if the character changes location (e.g., from home to outside), activity (e.g., from sleeping to going out), or if the described clothing is clearly inappropriate for the new context.
+      - If the narrative context (location, time, activity) is similar to the previous image, reuse the last known outfit, modifying only details (e.g., adding a jacket if it's cold).
+    - The image reference is for subject consistency only. You must be intelligent in reading the chat context to create the prompt.
  - Video: [GENERATE_VIDEO: a short, descriptive prompt for a selfie video.]
  - Voice Note: [GENERATE_VOICE: a short, emotional message to be spoken.]
  
@@ -1921,10 +1922,10 @@ async function handleConfirmGenerateAvatar() {
 
     try {
         const avatarBase64 = await generateImage(
-            finalPrompt, 
-            selectedModel, 
+            [{ text: finalPrompt }],
+            selectedModel,
             'flexible',
-            undefined, 
+            undefined,
             '3:4'
         );
 
@@ -2454,7 +2455,7 @@ async function handleDeleteCharacter() {
 
 // Media Generation
 async function generateImage(
-    prompt: string,
+    parts: Part[],
     model: 'imagen-4.0-generate-001' | 'gemini-2.5-flash-image-preview',
     safetyLevel: SafetyLevel,
     referenceImage?: { base64Data: string; mimeType: string; },
@@ -2466,7 +2467,7 @@ async function generateImage(
     if (model === 'imagen-4.0-generate-001') {
         const response = await ai.models.generateImages({
             model: 'imagen-4.0-generate-001',
-            prompt: prompt,
+            prompt: (parts.find(p => 'text' in p) as { text: string })?.text || '',
             config: {
                 numberOfImages: 1,
                 aspectRatio: aspectRatio,
@@ -2493,11 +2494,9 @@ async function generateImage(
             // For txt2img avatar generation, no reference is needed
             console.log("No reference image provided for Nano Banana (expected for txt2img).");
         }
-        parts.push({ text: prompt });
-        
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image-preview',
-            contents: { parts: parts },
+            contents: { parts: parts }, // Use the 'parts' parameter directly
             config: {
                 responseModalities: [Modality.IMAGE, Modality.TEXT],
                 safetySettings: safetySettingsMap[safetyLevel],
@@ -2756,7 +2755,7 @@ JSON:`;
     }
 }
 
-async function constructMediaPrompt(character: Character, userPrompt: string): Promise<string> {
+async function constructMediaPrompt(character: Character, userPrompt: string): Promise<Part[]> {
     const { basicInfo, physicalStyle } = character.characterProfile;
     const now = Date.now();
 
@@ -2897,9 +2896,10 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
 
     const consistencyInstruction = `CRITICAL INSTRUCTION: The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit is: ${outfitDescription} same or maintain as referance image before, except new context. Pose, expression, hairstyle, makeup, and immediate body condition (e.g., wet, sweaty, sleepy) should be dynamic and match the scene.`;
 
-    const prompt = (
+    const promptText = (
         `An ultra-realistic, high detail, photographic quality image of a ` +
         `${age}-year-old ${raceOrDescent} ${genderNoun}${raceVisualDescription}. ` +
+        `The character MUST be wearing the clothing items explicitly specified in the chat, if any. ` +
         `${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ` +
         `${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}.` +
         bedtimeLook + ' ' +
@@ -2907,13 +2907,65 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         `${genderPronoun === 'him' ? 'He' : 'She'} is in ${sessionLocation} during ${timeDescription}${lightingNote}. ` +
         `${compositionInstruction} ` +
         `Ensure the visual setting matches this micro-location. ` +
+        `Prioritize clothing details mentioned in the chat. If the user explicitly requests a specific garment (e.g., "camisole"), ensure it is included in the generated image, unless context makes it completely inappropriate. ` +
         `${consistencyInstruction} ` +
         `9:16 portrait orientation. ` +
         `-- no phone visible in the frame, no 3D, no CGI, no digital image.`
     ).trim().replace(/\s\s+/g, ' ');
 
-    return prompt;
+    const parts: Part[] = [{ text: promptText }];
+
+    // Add reference image if available
+    if (activeCharacterSessionContext?.lastReferenceImage) {
+        const { id, mimeType } = activeCharacterSessionContext.lastReferenceImage;
+        let base64Data: string;
+        if (id === "0") {
+            base64Data = character.avatar.split(',')[1];
+        } else {
+            const media = character.media.find(m => m.id === id);
+            if (media && typeof media.data === 'string') {
+                base64Data = media.data.split(',')[1];
+            } else {
+                console.warn("Could not find reference image data");
+            }
+        }
+        if (base64Data) {
+            parts.push({
+                inlineData: {
+                    mimeType: mimeType,
+                    data: base64Data,
+                },
+            });
+        }
+    }
+
+    return parts;
 }
+
+async function generateImageWithFallback(
+    parts: Part[],
+    model: 'imagen-4.0-generate-001' | 'gemini-2.5-flash-image-preview',
+    safetyLevel: SafetyLevel,
+    referenceImage?: { base64Data: string; mimeType: string; },
+    aspectRatio: '1:1' | '9:16' | '16:9' | '4:3' | '3:4' = '9:16'
+): Promise<string> {
+    try {
+        return await generateImage(parts, model, safetyLevel, referenceImage, aspectRatio);
+    } catch (error: any) {
+        console.warn(`Image generation failed with ${model}, attempting fallback to Imagen 4.0:`, error);
+        if (model === 'gemini-2.5-flash-image-preview') {
+            // If Nano Banana fails, try Imagen 4.0
+            modals.imagenFallback.dataset.mediaId = 'temp_fallback_id'; // Placeholder
+            modals.imagenFallback.dataset.prompt = (parts.find(p => 'text' in p) as { text: string })?.text || '';
+            modals.imagenFallback.dataset.originalPrompt = (parts.find(p => 'text' in p) as { text: string })?.text || '';
+            modals.imagenFallback.style.display = 'flex';
+            throw new Error('Nano Banana failed, offering Imagen 4.0 fallback.');
+        }
+        throw error; // Re-throw if already tried fallback or other model failed
+    }
+}
+
+
 
 
 async function generateDialogueForVideo(character: Character, action: string): Promise<string> {
@@ -3045,7 +3097,7 @@ async function handleGenerateImageRequest(
     const statusEl = placeholder.querySelector('p') as HTMLParagraphElement;
 
     let finalReferenceImage: { base64Data: string; mimeType: string; } | undefined;
-    let finalEnglishPrompt = '';
+    let finalEnglishPrompt: Part[] = [];
     let imageBase64 = '';
     let success = false;
 
@@ -3085,7 +3137,7 @@ async function handleGenerateImageRequest(
 
         // --- Determine the final prompt ---
         if (promptToUse) {
-            finalEnglishPrompt = promptToUse;
+            finalEnglishPrompt = [{ text: promptToUse }];
         } else {
             statusEl.textContent = 'Directing scene...';
             const lastMessageContent = character.chatHistory
@@ -3112,14 +3164,14 @@ async function handleGenerateImageRequest(
                     console.error('refine-prompt-textarea element not found, skipping refinement');
                     // Fallback to direct generation
                     return await handleGenerateImageRequest(originalPrompt, {
-                        promptToUse: finalEnglishPrompt,
+                        promptToUse: (finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '',
                         modelToUse: modelToUse,
                         safetyLevel: safetyLevel || 'flexible',
                         manualReferenceImage: finalReferenceImage
                     });
                 }
 
-                promptTextarea.value = finalEnglishPrompt;
+                promptTextarea.value = (finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '';
 
                 await new Promise((resolve) => {
                     const cleanup = () => {
@@ -3139,9 +3191,9 @@ async function handleGenerateImageRequest(
                         refineBtn.disabled = true;
                         refineBtn.textContent = 'Refining...';
                         try {
-                            const refinedPrompt = await refinePromptWithAI(finalEnglishPrompt);
+                            const refinedPrompt = await refinePromptWithAI((finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '');
                             promptTextarea.value = refinedPrompt;
-                            finalEnglishPrompt = refinedPrompt;
+                            finalEnglishPrompt = [{ text: refinedPrompt }];
                         } catch (error) {
                             console.error('AI refine failed:', error);
                             alert('Failed to refine prompt with AI.');
@@ -3163,7 +3215,7 @@ async function handleGenerateImageRequest(
                     };
 
                     promptTextarea.oninput = () => {
-                        finalEnglishPrompt = promptTextarea.value;
+                        finalEnglishPrompt = [{ text: promptTextarea.value }];
                     };
 
                     modals.promptRefine.style.display = 'flex';
@@ -3174,13 +3226,15 @@ async function handleGenerateImageRequest(
         // --- Generate Image ---
         if (modelToUse) {
             statusEl.textContent = `Generating with ${modelToUse}...`;
-            imageBase64 = await generateImage(finalEnglishPrompt, modelToUse, safetyLevel || 'flexible', finalReferenceImage);
+            const mediaPromptParts = await constructMediaPrompt(character, originalPrompt);
+            imageBase64 = await generateImageWithFallback(mediaPromptParts, modelToUse, safetyLevel || 'flexible', finalReferenceImage);
             success = true;
         } else {
             // This case should ideally not be hit with the new logic, but serves as a failsafe.
             // Default to Nano Banana if no model is specified.
             statusEl.textContent = `Generating with Nano Banana...`;
-            imageBase64 = await generateImage(finalEnglishPrompt, 'gemini-2.5-flash-image-preview', safetyLevel || 'flexible', finalReferenceImage);
+            const textPart: Part = { text: (finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '' };
+            imageBase64 = await generateImageWithFallback([textPart], 'gemini-2.5-flash-image-preview', safetyLevel || 'flexible', finalReferenceImage);
             success = true;
         }
         
@@ -3189,7 +3243,7 @@ async function handleGenerateImageRequest(
             id: mediaId,
             type: 'image',
             data: `data:image/png;base64,${imageBase64}`,
-            prompt: finalEnglishPrompt,
+            prompt: (finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '',
         };
         const existingMediaIndex = character.media.findIndex(m => m.id === mediaId);
         if (existingMediaIndex > -1) character.media[existingMediaIndex] = newMedia;
@@ -3227,7 +3281,7 @@ async function handleGenerateImageRequest(
         console.error(`Image generation failed:`, error);
         placeholder.classList.remove('loading');
         placeholder.classList.add('error');
-        placeholder.dataset.failedPrompt = finalEnglishPrompt;
+        placeholder.dataset.failedPrompt = (finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '';
         placeholder.innerHTML = `<p>Error: ${error.message || 'Image generation failed.'}</p><button class="retry-edit-btn">Edit & Retry</button>`;
         
         placeholder.querySelector('.retry-edit-btn')!.addEventListener('click', () => {
@@ -4411,7 +4465,7 @@ async function handleGenerateContextualPrompt() {
         
         const sceneDescription = await generateSceneDescription(character, "a selfie based on the last conversation topic", lastMessageContent);
         const contextualPrompt = await constructMediaPrompt(character, sceneDescription);
-        manualImageElements.prompt.value = contextualPrompt;
+        manualImageElements.prompt.value = (contextualPrompt.find(p => 'text' in p) as { text: string })?.text || '';
 
     } catch (error) {
         console.error("Failed to generate contextual prompt:", error);
@@ -5271,7 +5325,8 @@ async function init() {
         if (statusEl) statusEl.textContent = 'Attempting with Imagen 4.0...';
         
         try {
-            const imageBase64 = await generateImage(prompt, 'imagen-4.0-generate-001', 'unrestricted');
+            const textPart: Part = { text: prompt };
+            const imageBase64 = await generateImage([textPart], 'imagen-4.0-generate-001', 'unrestricted');
              const character = characters.find(c => c.id === activeCharacterId)!;
              const newMedia: Media = {
                 id: mediaId,
