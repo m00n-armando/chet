@@ -2895,7 +2895,7 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         compositionInstruction = `Composition: from the user's viewpoint, looking directly at the character; tight portrait framing from chest up; shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.`;
     }
 
-    const consistencyInstruction = `CRITICAL INSTRUCTION: The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit is: ${outfitDescription}. Pose, expression, hairstyle, makeup, and immediate body condition (e.g., wet, sweaty, sleepy) should be dynamic and match the scene.`;
+    const consistencyInstruction = `CRITICAL INSTRUCTION: The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit is: ${outfitDescription} same or maintain as referance image before, except new context. Pose, expression, hairstyle, makeup, and immediate body condition (e.g., wet, sweaty, sleepy) should be dynamic and match the scene.`;
 
     const prompt = (
         `An ultra-realistic, high detail, photographic quality image of a ` +
