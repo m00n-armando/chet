@@ -148,6 +148,7 @@ interface SessionContext {
     lastReferenceImage?: {
         id: string;
         mimeType: string;
+        dataUrl: string; // Add dataUrl for easier retrieval
     };
 }
 
@@ -168,9 +169,10 @@ let activeCharacterId: string | null = null;
 let characterCreationPreview: CharacterCreationPreview | null = null;
 let isGeneratingResponse = false;
 let activeCharacterSessionContext: SessionContext | null = null;
-let manualImageReference: { base64Data: string; mimeType: string } | null = null;
-let editImageReference: { base64Data: string; mimeType: string } | null = null;
+let manualImageReference: { base64Data: string; mimeType: string; dataUrl: string } | null = null;
+let editImageReference: { base64Data: string; mimeType: string; dataUrl: string } | null = null;
 let isFirstMessageInSession = false;
+let tempRetryReferenceImage: { base64Data: string; mimeType: string; dataUrl: string } | null = null; // New global variable
 let isVideoGenerationEnabled = false;
 let editingContext: 'new' | 'existing' = 'existing';
 
@@ -1292,7 +1294,8 @@ async function startChat(characterId: string) {
             if (mediaId) {
                 activeCharacterSessionContext.lastReferenceImage = {
                     id: mediaId,
-                    mimeType: lastAiImageMessage.imageDataUrl!.match(/data:(.*);base64,/)?.[1] || 'image/png'
+                    mimeType: lastAiImageMessage.imageDataUrl!.match(/data:(.*);base64,/)?.[1] || 'image/png',
+                    dataUrl: lastAiImageMessage.imageDataUrl! // Include dataUrl
                 };
                 console.log(`Initialized session with last AI image as reference: ${mediaId}`);
             }
@@ -1300,7 +1303,8 @@ async function startChat(characterId: string) {
             // If no AI-generated images, use the character's avatar as the initial reference
             activeCharacterSessionContext.lastReferenceImage = {
                 id: "0", // Special ID for avatar
-                mimeType: character.avatar.match(/data:(.*);base64,/)?.[1] || 'image/png'
+                mimeType: character.avatar.match(/data:(.*);base64,/)?.[1] || 'image/png',
+                dataUrl: character.avatar // Include dataUrl
             };
             console.log("Initialized session with avatar as reference.");
         }
@@ -3185,28 +3189,23 @@ async function handleGenerateImageRequest(
 
             if (activeCharacterSessionContext?.lastReferenceImage) {
                 console.log("Chaining from last generated image:", activeCharacterSessionContext.lastReferenceImage.id);
-                let base64Data: string;
-                if (activeCharacterSessionContext.lastReferenceImage.id === "0") {
-                    base64Data = character.avatar.split(',')[1];
-                } else {
-                    const media = character.media.find(m => m.id === activeCharacterSessionContext.lastReferenceImage!.id);
-                    if (media && typeof media.data === 'string') {
-                        base64Data = media.data.split(',')[1];
-                    } else {
-                        console.warn("Could not find reference image data");
-                        throw new Error("Reference image not found");
-                    }
-                }
-                finalReferenceImage = { base64Data, mimeType: activeCharacterSessionContext.lastReferenceImage.mimeType };
+                finalReferenceImage = {
+                    base64Data: activeCharacterSessionContext.lastReferenceImage.dataUrl.split(',')[1],
+                    mimeType: activeCharacterSessionContext.lastReferenceImage.mimeType
+                };
             } else {
                 console.log("No previous image in session, using avatar as reference.");
-                const base64Data = character.avatar.split(',')[1];
-                const mimeType = character.avatar.match(/data:(.*);base64,/)?.[1] || 'image/png';
-                finalReferenceImage = { base64Data, mimeType };
+                finalReferenceImage = {
+                    base64Data: character.avatar.split(',')[1],
+                    mimeType: character.avatar.match(/data:(.*);base64,/)?.[1] || 'image/png'
+                };
             }
         } else {
             // Manual generation: use the reference image provided by the user, if any.
-            finalReferenceImage = manualReferenceImage;
+            finalReferenceImage = manualImageReference ? {
+                base64Data: manualImageReference.base64Data,
+                mimeType: manualImageReference.mimeType
+            } : undefined;
         }
 
         // --- Determine the final prompt ---
@@ -3341,7 +3340,8 @@ async function handleGenerateImageRequest(
             if (isAiInitiated && activeCharacterSessionContext) {
                   activeCharacterSessionContext.lastReferenceImage = {
                      id: newMedia.id,
-                     mimeType: (newMedia.data as string).match(/data:(.*);base64,/)?.[1] || 'image/png'
+                     mimeType: (newMedia.data as string).match(/data:(.*);base64,/)?.[1] || 'image/png',
+                     dataUrl: newMedia.data as string // Include dataUrl
                  };
             }
             await saveAppState({ userProfile, characters });
@@ -3357,15 +3357,20 @@ async function handleGenerateImageRequest(
         placeholder.classList.add('error');
         placeholder.dataset.failedPrompt = (finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '';
         if (finalReferenceImage) {
-            // Ensure the full data URL is stored, including the prefix
-            placeholder.dataset.referenceImage = `data:${finalReferenceImage.mimeType};base64,${finalReferenceImage.base64Data}`;
+            // Store the full reference image object in a temporary global variable
+            tempRetryReferenceImage = {
+                base64Data: finalReferenceImage.base64Data,
+                mimeType: finalReferenceImage.mimeType,
+                dataUrl: `data:${finalReferenceImage.mimeType};base64,${finalReferenceImage.base64Data}`
+            };
+        } else {
+            tempRetryReferenceImage = null;
         }
         placeholder.innerHTML = `<p>Error: ${error.message || 'Image generation failed.'}</p><button class="retry-edit-btn">Edit & Retry</button>`;
         
         placeholder.querySelector('.retry-edit-btn')!.addEventListener('click', () => {
-            const referenceImageSrc = placeholder.dataset.referenceImage;
-            if (referenceImageSrc) {
-                imageRetryElements.referenceImg.src = referenceImageSrc;
+            if (tempRetryReferenceImage) {
+                imageRetryElements.referenceImg.src = tempRetryReferenceImage.dataUrl;
                 imageRetryElements.referenceContainer.style.display = 'block';
             } else {
                 imageRetryElements.referenceContainer.style.display = 'none';
@@ -4543,9 +4548,10 @@ async function processReferenceImage(file: File | null) {
 
     try {
         const base64Image = await blobToBase64(file);
+        const mimeType = file.type;
         const base64Data = base64Image.split(',')[1];
 
-        manualImageReference = { base64Data, mimeType: file.type };
+        manualImageReference = { base64Data, mimeType, dataUrl: base64Image };
 
         manualImageElements.refPreview.src = base64Image;
         manualImageElements.refPreview.classList.remove('hidden');
@@ -4566,9 +4572,10 @@ async function processEditReferenceImage(file: File | null) {
 
     try {
         const base64Image = await blobToBase64(file);
+        const mimeType = file.type;
         const base64Data = base64Image.split(',')[1];
 
-        editImageReference = { base64Data, mimeType: file.type };
+        editImageReference = { base64Data, mimeType, dataUrl: base64Image };
 
         imageEditElements.refPreview.src = base64Image;
         imageEditElements.refPreview.classList.remove('hidden');
@@ -5284,7 +5291,7 @@ async function init() {
     // Image Edit Gallery Reference Functionality
     imageEditElements.selectFromGalleryBtn.addEventListener('click', () => {
         openReferenceGallery((mediaData) => {
-            editImageReference = { base64Data: mediaData.base64Data, mimeType: mediaData.mimeType };
+            editImageReference = { base64Data: mediaData.base64Data, mimeType: mediaData.mimeType, dataUrl: mediaData.dataUrl };
             imageEditElements.refPreview.src = mediaData.dataUrl;
             imageEditElements.refPreview.classList.remove('hidden');
             imageEditElements.refDropzonePrompt.classList.add('hidden');
@@ -5330,7 +5337,7 @@ async function init() {
     manualImageElements.aiContextBtn.addEventListener('click', handleGenerateContextualPrompt);
     manualImageElements.selectFromGalleryBtn.addEventListener('click', () => {
         openReferenceGallery((mediaData) => {
-            manualImageReference = { base64Data: mediaData.base64Data, mimeType: mediaData.mimeType };
+            manualImageReference = { base64Data: mediaData.base64Data, mimeType: mediaData.mimeType, dataUrl: mediaData.dataUrl };
             manualImageElements.refPreview.src = mediaData.dataUrl;
             manualImageElements.refPreview.classList.remove('hidden');
             manualImageElements.refDropzonePrompt.classList.add('hidden');
