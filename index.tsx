@@ -1273,14 +1273,37 @@ async function startChat(characterId: string) {
         const wallpaper = chatScreenElements.messages;
         wallpaper.style.backgroundImage = `url(${character.avatar})`;
         
-        // Reset session context, specifically the image chain
+        // Initialize session context
         activeCharacterSessionContext = {
             hairstyle: getRandomElement(character.characterProfile.physicalStyle.hairStyle), // Select a random hairstyle
             timestamp: Date.now(),
-            lastReferenceImage: undefined,
+            lastReferenceImage: undefined, // Will be set below if a previous image exists
         };
         character.currentPowerLevel = null; // Initialize current power level
         character.lastPowerTrigger = undefined; // Initialize last power trigger timestamp
+
+        // Find the most recent AI-generated image to set as initial reference for the session
+        const lastAiImageMessage = character.chatHistory
+            .slice().reverse()
+            .find(msg => msg.sender === 'ai' && msg.type === 'image' && msg.imageDataUrl);
+
+        if (lastAiImageMessage) {
+            const mediaId = character.media.find(m => m.data === lastAiImageMessage.imageDataUrl)?.id;
+            if (mediaId) {
+                activeCharacterSessionContext.lastReferenceImage = {
+                    id: mediaId,
+                    mimeType: lastAiImageMessage.imageDataUrl!.match(/data:(.*);base64,/)?.[1] || 'image/png'
+                };
+                console.log(`Initialized session with last AI image as reference: ${mediaId}`);
+            }
+        } else {
+            // If no AI-generated images, use the character's avatar as the initial reference
+            activeCharacterSessionContext.lastReferenceImage = {
+                id: "0", // Special ID for avatar
+                mimeType: character.avatar.match(/data:(.*);base64,/)?.[1] || 'image/png'
+            };
+            console.log("Initialized session with avatar as reference.");
+        }
 
         renderChatHistory();
         renderMediaGallery();
@@ -3334,6 +3357,7 @@ async function handleGenerateImageRequest(
         placeholder.classList.add('error');
         placeholder.dataset.failedPrompt = (finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '';
         if (finalReferenceImage) {
+            // Ensure the full data URL is stored, including the prefix
             placeholder.dataset.referenceImage = `data:${finalReferenceImage.mimeType};base64,${finalReferenceImage.base64Data}`;
         }
         placeholder.innerHTML = `<p>Error: ${error.message || 'Image generation failed.'}</p><button class="retry-edit-btn">Edit & Retry</button>`;
