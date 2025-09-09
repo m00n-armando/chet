@@ -24,8 +24,9 @@ import { GoogleGenAI, Type, Chat, HarmBlockThreshold, HarmCategory, GenerateCont
 import { saveAppState, loadAppState, blobToBase64, base64ToBlob } from './storageServices';
 import JSZip from 'jszip';
 import { inject } from '@vercel/analytics';
-
-// --- TYPES AND INTERFACES ---
+import { injectSpeedInsights } from '@vercel/speed-insights';
+ 
+ // --- TYPES AND INTERFACES ---
 interface UserProfile {
   name: string;
   /**
@@ -5341,3 +5342,4 @@ function getPinchDistance(e: TouchEvent): number {
 
 // Initialize Vercel Analytics
 inject();
+injectSpeedInsights();
