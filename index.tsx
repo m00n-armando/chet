@@ -2077,10 +2077,10 @@ function showIntimacyProgressNotification(change: number, reason: string, newLev
     
     // Auto-remove after 5 seconds
     const displayTime = 5000;
-    const fadeOutTime = 300;
+    const fadeOutTime = 500;
     const delayBeforeFade = 0;
     setTimeout(() => {
-        notification.style.animation = 'slideOutRight 1s ease-in';
+        notification.style.animation = 'slideOutRight 0.5s ease-in';
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.parentNode.removeChild(notification);
