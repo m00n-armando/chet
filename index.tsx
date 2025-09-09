@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ---CHET v.2.1.3---
+// ---CHET v.2.1.5---
+// Changelog v.2.1.5:
+// - Add innate power level systems to character.
+// - Add innate power AI mechanism auto trigger.
+// Changelog v.2.1.4:
+// - Add generate image button in the chat bubble.
+// - Add detailed prompt generator for chat or face to face interactions.
+// - Add intimacy tier on the header chat.
+// - Add intimacy beyond 100 and below -100.
 // Changelog v.2.1.3:
 // - Replaced full-screen loading indicator with a local loading indicator for user-sent images.
 // - Improved image viewer: added double-tap to reset zoom, always visible controls, and persistent prompt panel during zoom.
@@ -93,8 +101,11 @@ interface Character {
   timezone: string; // IANA timezone identifier (e.g., "Asia/Tokyo")
   intimacyLevel: number; // New intimacy level from -100 to 100
   needsRefinement?: boolean; // Flag for migrated characters
+  innatePowerReleased?: boolean; // New flag to track if innate power has been released (for the 200 intimacy level trigger)
+  currentPowerLevel?: 'LOW' | 'MID' | 'HIGH' | 'MAX' | null; // New property to track active power level
+  lastPowerTrigger?: string; // Timestamp of the last power trigger to prevent spamming
   // DEPRECATED: characterSheet will be migrated to characterProfile
-  characterSheet?: string; 
+  characterSheet?: string;
 }
 
 
@@ -125,6 +136,8 @@ interface SessionContext {
     hairstyle: string;
     outfit?: string;
     timestamp: number;
+    location?: string; // Added for contextual outfit logic
+    timeDescription?: string; // Added for contextual outfit logic
     // New property to track the last reference image for chaining
     lastReferenceImage?: {
         id: string;
@@ -213,6 +226,11 @@ interface PowerSystem {
  strengthensWhen: string;
  weakensWhen: string;
  outOfControlWhen: string;
+ // New properties for power levels
+ lowEffect: string;
+ midEffect: string;
+ highEffect: string;
+ maxEffect: string;
 }
 
 const racePowerSystems: Record<string, PowerSystem> = {
@@ -223,6 +241,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "Mengkonsumsi darah dari target yang kuat atau saat berada di bawah gerhana bulan.",
    weakensWhen: "Terkena sinar matahari langsung, kekurangan darah, atau saat berada di dekat simbol suci yang kuat.",
    outOfControlWhen: "Saat 'Blood Frenzy' (rasa lapar tak terkendali) mengambil alih, menyerang siapapun tanpa pandang bulu untuk memuaskan dahaga.",
+   lowEffect: "Mata berkilat merah, sedikit peningkatan kecepatan.",
+   midEffect: "Gigi taring memanjang, kekuatan fisik meningkat, regenerasi luka kecil.",
+   highEffect: "Transformasi parsial (cakar, sayap kelelawar), kecepatan dan kekuatan luar biasa, penyembuhan cepat.",
+   maxEffect: "Mengalami 'Blood Frenzy', menyerang tanpa pandang bulu, kehilangan kontrol diri sepenuhnya."
  },
  "demon": {
    name: "Infernal Contract",
@@ -231,6 +253,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "Di lingkungan yang panas seperti dekat gunung berapi, atau saat perjanjian yang dibuat memberinya keuntungan besar.",
    weakensWhen: "Terkena air suci atau berada di tanah yang disucikan.",
    outOfControlWhen: "Saat emosi kebencian atau amarah memuncak, api neraka bisa membakar sekelilingnya tanpa kontrol.",
+   lowEffect: "Mata bersinar merah, aura panas samar.",
+   midEffect: "Bayangan bergerak sendiri, api kecil muncul di tangan, suara menjadi lebih dalam.",
+   highEffect: "Kontrol bayangan yang kuat, semburan api neraka, kemampuan membuat ilusi.",
+   maxEffect: "Api neraka membakar sekeliling, kehilangan kendali emosi, menyerang dengan amarah."
  },
  "angel": {
    name: "Celestial Radiance",
@@ -239,6 +265,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "Berada di tempat suci (gereja, kuil) atau saat pengorbanan diri untuk kebaikan.",
    weakensWhen: "Saat melakukan tindakan yang dianggap 'berdosa' atau saat kehilangan keyakinan.",
    outOfControlWhen: "Saat merasakan 'Divine Wrath' (kemarahan suci) terhadap kejahatan yang luar biasa, cahayanya bisa menjadi penghakiman yang membabi buta.",
+   lowEffect: "Aura cahaya samar, perasaan damai di sekitar.",
+   midEffect: "Cahaya menyembuhkan luka kecil, dapat mengusir makhluk kegelapan lemah.",
+   highEffect: "Sayap cahaya muncul, penyembuhan cepat, serangan cahaya yang kuat.",
+   maxEffect: "Cahaya menyilaukan dan membakar, menyerang tanpa pandang bulu, kehilangan kendali atas kemarahan suci."
  },
  "elf": {
    name: "Nature's Grasp",
@@ -247,6 +277,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "Di bawah cahaya bulan purnama, atau saat melindungi hutan/makhluk hidup.",
    weakensWhen: "Di lingkungan tandus, kota industri, atau saat koneksi dengan alam terputus.",
    outOfControlWhen: "Saat merasakan amarah yang luar biasa karena perusakan alam, kekuatan bisa 'meluap' dan merusak tanpa pandang bulu.",
+   lowEffect: "Tumbuhan di sekitar sedikit bergerak, hewan mendekat.",
+   midEffect: "Dapat menumbuhkan tanaman kecil, mengendalikan akar, berbicara dengan hewan.",
+   highEffect: "Memanipulasi tumbuhan besar, memanggil hewan, merasakan kehidupan di sekitar.",
+   maxEffect: "Tumbuhan tumbuh liar dan menyerang, kehilangan kendali atas amarah terhadap perusakan alam."
  },
  "orc": {
    name: "Berserker's Rage",
@@ -255,6 +289,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "Semakin banyak luka yang diterima, semakin kuat amarahnya.",
    weakensWhen: "Saat merasa ragu, takut, atau setelah amarahnya reda (menyebabkan kelelahan ekstrem).",
    outOfControlWhen: "Jika amarah mencapai puncaknya, mereka tidak bisa membedakan kawan dan lawan, menyerang apapun yang bergerak hingga tenaganya habis.",
+   lowEffect: "Otot menegang, sedikit peningkatan kekuatan.",
+   midEffect: "Mata merah menyala, kekuatan fisik dan daya tahan meningkat signifikan.",
+   highEffect: "Transformasi parsial (kulit mengeras, taring), kekuatan dan daya tahan luar biasa, tidak merasakan sakit.",
+   maxEffect: "Mengalami 'Berserker's Rage', menyerang tanpa pandang bulu, kehilangan kesadaran."
  },
  "fairy": {
    name: "Mischievous Veil",
@@ -263,6 +301,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "Di tempat yang penuh dengan tawa dan kegembiraan, atau saat berhasil melakukan tipuan yang cerdik.",
    weakensWhen: "Terkena 'cold iron' (besi murni) atau saat berada di lingkungan yang penuh kesedihan.",
    outOfControlWhen: "Saat merasa panik atau ketakutan yang ekstrem, ilusi yang diciptakan menjadi nyata dan berbahaya bagi semua orang di sekitarnya.",
+   lowEffect: "Kilauan cahaya kecil, perasaan senang atau gelisah samar.",
+   midEffect: "Dapat membuat ilusi sederhana, menjadi tidak terlihat sebagian, mempengaruhi emosi ringan.",
+   highEffect: "Ilusi kompleks, tidak terlihat sepenuhnya, manipulasi emosi yang kuat.",
+   maxEffect: "Ilusi menjadi nyata dan berbahaya, kehilangan kendali karena panik atau ketakutan."
  },
  "werewolf": {
    name: "Lunar Instinct",
@@ -271,6 +313,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "Saat bulan purnama berada di puncaknya, atau saat bertarung dalam kelompok (pack).",
    weakensWhen: "Terkena perak (silver), atau saat berada dalam kondisi fisik yang lemah sebelum transformasi.",
    outOfControlWhen: "Transformasi pertama kali atau saat terluka parah oleh perak, menyebabkan hilangnya kesadaran dan menyerang apapun di dekatnya.",
+   lowEffect: "Indra penciuman dan pendengaran meningkat, mata berkilat kuning.",
+   midEffect: "Cakar dan gigi memanjang, kekuatan dan kecepatan meningkat, regenerasi.",
+   highEffect: "Transformasi parsial (bulu, moncong), kekuatan, kecepatan, dan indra super.",
+   maxEffect: "Transformasi penuh, kehilangan kesadaran, menyerang tanpa pandang bulu."
  },
  "ghost": {
    name: "Ethereal Phase",
@@ -279,6 +325,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "Di tempat-tempat tua yang penuh dengan energi spiritual atau saat malam hari.",
    weakensWhen: "Di tempat yang baru dibangun atau saat 'urusan yang belum selesai' (unfinished business) mulai terselesaikan.",
    outOfControlWhen: "Saat mengingat kembali trauma kematiannya, bisa menciptakan fenomena poltergeist yang merusak lingkungan sekitar.",
+   lowEffect: "Merasa dingin di sekitar, benda kecil bergerak sendiri.",
+   midEffect: "Dapat menembus benda tipis, menjadi tidak terlihat samar, mendengar suara roh.",
+   highEffect: "Menembus benda padat, tidak terlihat sepenuhnya, memanipulasi objek dengan kuat.",
+   maxEffect: "Menciptakan fenomena poltergeist yang merusak, kehilangan kendali karena trauma."
  },
  "beast human": {
    name: "Primal Aspect",
@@ -287,6 +337,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "Berada di habitat alami hewan yang menjadi aspeknya.",
    weakensWhen: "Di lingkungan yang sangat artifisial dan jauh dari alam, seperti kota metropolitan yang padat.",
    outOfControlWhen: "Saat terlalu lama menggunakan aspek hewannya, kepribadian manusianya bisa terkikis dan menjadi buas sepenuhnya.",
+   lowEffect: "Indra hewan meningkat, sedikit perubahan fisik (misal: mata lebih tajam).",
+   midEffect: "Cakar atau taring muncul, kecepatan atau kekuatan meningkat, regenerasi ringan.",
+   highEffect: "Transformasi parsial (misal: bulu, telinga hewan), kemampuan hewan yang kuat.",
+   maxEffect: "Transformasi penuh menjadi buas, kehilangan kepribadian manusia."
  },
  "human": {
    name: "Adaptive Will",
@@ -295,6 +349,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "Terus-menerus mendorong batas diri dan menghadapi berbagai macam ancaman.",
    weakensWhen: "Dalam keadaan stagnan, nyaman, dan tanpa tantangan.",
    outOfControlWhen: "Saat terlalu banyak menyerap energi atau kekuatan yang berbeda dalam waktu singkat, bisa menyebabkan ketidakstabilan fisik dan mental.",
+   lowEffect: "Peningkatan fokus dan refleks, belajar cepat.",
+   midEffect: "Dapat meniru gerakan atau teknik sederhana, daya tahan meningkat.",
+   highEffect: "Menyerap sebagian kecil kekuatan lawan, adaptasi fisik yang cepat.",
+   maxEffect: "Menyerap terlalu banyak kekuatan, menyebabkan ketidakstabilan fisik dan mental."
  },
 };
 
@@ -360,6 +418,17 @@ const INTIMACY_ADJUSTMENT_SCHEMA = {
   },
   required: ["change", "reason"],
 };
+
+function getIntimacyTierTitle(level: number): string {
+    if (level >= -100 && level <= -50) return "(Hostile/Distant)";
+    if (level >= -49 && level <= -1) return "(Uncomfortable/Wary)";
+    if (level >= 0 && level <= 20) return "(Neutral/Formal)";
+    if (level >= 21 && level <= 40) return "(Friendly/Casual)";
+    if (level >= 41 && level <= 60) return "(Warm/Affectionate)";
+    if (level >= 61 && level <= 80) return "(Intimate/Romantic)";
+    if (level >= 81 && level <= 100) return "(Deeply Bonded/Passionate)";
+    return "(Unknown)"; // Fallback for out-of-range values
+}
 
 
 // Audio state
@@ -1007,11 +1076,20 @@ async function startChat(characterId: string) {
    <WeakensWhen>${power.weakensWhen}</WeakensWhen>
    <OutOfControlWhen>${power.outOfControlWhen}</OutOfControlWhen>
  </PowerSystem>
-            `;
-        }
-        
-        // Convert profile object to a string for the system prompt
-        const profileString = `
+ 
+ **Instructions for Innate Power Usage:**
+ - You have an innate power as a ${basicInfo.race}. You can choose to release this power at any time, but it should be a significant narrative moment.
+ - To release your innate power, include the tag \`[INNATE_POWER_RELEASE: LEVEL: EFFECT]\` in your response.
+ - Replace \`LEVEL\` with one of: \`LOW\`, \`MID\`, \`HIGH\`, \`MAX\`.
+ - Replace \`EFFECT\` with a brief, descriptive phrase of the power's effect at that level, drawing from your PowerSystem definition.
+ - Example: \`[INNATE_POWER_RELEASE: MID: Eyes glow red, increased strength]\`
+ - You should only use this tag when you are actively using your power in the narrative.
+ - Do not spam the power release. Use it intelligently and sparingly for dramatic effect.
+             `;
+         }
+         
+         // Convert profile object to a string for the system prompt
+         const profileString = `
 <CharacterProfile>
   <BasicInfo><Name>${basicInfo.name}</Name><Username>${basicInfo.username}</Username><Bio>${basicInfo.bio}</Bio><Age>${basicInfo.age}</Age><Zodiac>${basicInfo.zodiac}</Zodiac><Ethnicity>${basicInfo.ethnicity}</Ethnicity><CityOfResidence>${basicInfo.cityOfResidence}</CityOfResidence><Aura>${basicInfo.aura}</Aura><Role>${basicInfo.roles}</Role></BasicInfo>
   <PhysicalAndStyle><BodyType>${physicalStyle.bodyType}</BodyType><Hair>${physicalStyle.hairColor} ${physicalStyle.hairStyle}</Hair><Eyes>${physicalStyle.eyeColor}</Eyes><Skin>${physicalStyle.skinTone}</Skin><BreastAndCleavage>${physicalStyle.breastAndCleavage}</BreastAndCleavage><ClothingStyle>${physicalStyle.clothingStyle}</ClothingStyle><Accessories>${physicalStyle.accessories}</Accessories><Makeup>${physicalStyle.makeupStyle}</Makeup><OverallVibe>${physicalStyle.overallVibe}</OverallVibe></PhysicalAndStyle>
@@ -1091,7 +1169,17 @@ async function startChat(characterId: string) {
  
  **MEDIA GENERATION:**
  - To send media, end your message with a command on a new line. Only use one per message.
- - Image: [GENERATE_IMAGE: a short, descriptive prompt for a selfie from your perspective.]
+ - Image: [GENERATE_IMAGE: <perspective: selfie|viewer>, <description>]
+   - Use 'selfie' perspective if you are narratively "far" from the user (e.g., sending a photo from your location).
+   - Use 'viewer' perspective if you are narratively "meeting directly" with the user (e.g., the user is looking at you).
+   - The description should be short and dynamic, focusing on your immediate expression, body state, and action/pose.
+   - **Image Consistency Rules:**
+     - Your core physical details (face, body type, skin tone, eye color) MUST remain consistent with your avatar/last generated image.
+     - Your pose, expression, hairstyle, makeup, and immediate body condition (e.g., wet, sweaty, sleepy) CAN change based on the scene and context.
+     - Your outfit:
+       - If the narrative context (location, time, activity) is similar to the previous image, reuse the last known outfit.
+       - If the narrative context changes significantly (e.g., you move from home to outside, or change from sleeping to going out), generate a new, contextually appropriate outfit.
+     - The image reference is for subject consistency only. You must be intelligent in reading the chat context to create the prompt.
  - Video: [GENERATE_VIDEO: a short, descriptive prompt for a selfie video.]
  - Voice Note: [GENERATE_VOICE: a short, emotional message to be spoken.]
  
@@ -1136,6 +1224,8 @@ async function startChat(characterId: string) {
             timestamp: Date.now(),
             lastReferenceImage: undefined,
         };
+        character.currentPowerLevel = null; // Initialize current power level
+        character.lastPowerTrigger = undefined; // Initialize last power trigger timestamp
 
         renderChatHistory();
         renderMediaGallery();
@@ -1171,7 +1261,10 @@ function renderChatHeader(character: Character) {
     
     if (userProfile?.showIntimacyMeter) {
         chatScreenElements.intimacyMeter.classList.remove('hidden');
-        chatScreenElements.intimacyLevel.textContent = String(character.intimacyLevel);
+        // Clamp the intimacy level for display purposes
+        const displayedIntimacyLevel = Math.max(-100, Math.min(100, character.intimacyLevel));
+        const intimacyTierTitle = getIntimacyTierTitle(displayedIntimacyLevel);
+        chatScreenElements.intimacyLevel.textContent = `${displayedIntimacyLevel} ${intimacyTierTitle}`;
     } else {
         chatScreenElements.intimacyMeter.classList.add('hidden');
     }
@@ -1222,9 +1315,114 @@ function renderChatHistory() {
 
     chatScreenElements.messages.innerHTML = '';
     character.chatHistory.forEach(msg => {
-        appendMessageBubble(msg);
+        appendMessageBubble(msg, character);
     });
     chatScreenElements.messages.scrollTop = chatScreenElements.messages.scrollHeight;
+}
+
+function appendMessageBubble(message: Message, character: Character): HTMLDivElement {
+    const { sender, content, timestamp, type = 'text' } = message;
+    
+    const bubble = document.createElement('div');
+    bubble.className = `message-bubble ${sender}`;
+
+    if (type === 'image' && message.imageDataUrl) {
+        bubble.classList.add('image');
+        const img = document.createElement('img');
+        img.src = message.imageDataUrl;
+        img.alt = sender === 'user' ? 'User uploaded image' : 'AI generated image';
+        
+        img.addEventListener('click', () => {
+             openImageViewer({
+                imageDataUrl: message.imageDataUrl,
+                promptText: content, // The prompt is stored in the content for AI images
+            });
+        });
+
+        bubble.appendChild(img);
+    } else if (type === 'voice') {
+        bubble.classList.add('voice');
+
+        const playButton = document.createElement('button');
+        playButton.className = 'play-btn';
+        playButton.innerHTML = ICONS.play;
+        playButton.setAttribute('aria-label', `Play voice note`);
+
+        if (!message.audioDataUrl) {
+            // This is a placeholder for a voice note being generated
+            playButton.innerHTML = ICONS.spinner;
+            playButton.disabled = true;
+        } else {
+            playButton.addEventListener('click', () => {
+                 if (currentPlayingUserAudio && !currentPlayingUserAudio.paused && currentPlayingUserAudioBtn === playButton) {
+                    currentPlayingUserAudio.pause();
+                 } else {
+                    stopAllOtherAudio(playButton);
+                    
+                    currentPlayingUserAudio = new Audio(message.audioDataUrl);
+                    currentPlayingUserAudioBtn = playButton;
+                    
+                    currentPlayingUserAudio.play();
+                    playButton.innerHTML = ICONS.pause;
+                    playButton.classList.add('playing');
+                    
+                    const onEnd = () => {
+                        playButton.innerHTML = ICONS.play;
+                        playButton.classList.remove('playing');
+                        if (currentPlayingUserAudioBtn === playButton) {
+                            currentPlayingUserAudio = null;
+                            currentPlayingUserAudioBtn = null;
+                        }
+                    };
+                    currentPlayingUserAudio.onpause = onEnd;
+                    currentPlayingUserAudio.onended = onEnd;
+                 }
+            });
+        }
+        
+        const waveform = document.createElement('div');
+        waveform.className = 'waveform';
+        if (message.audioDataUrl) { // Only render waveform for complete VNs
+             for (let i = 0; i < 20; i++) {
+                const bar = document.createElement('div');
+                bar.style.height = `${Math.random() * 80 + 20}%`;
+                waveform.appendChild(bar);
+            }
+        }
+       
+        const durationSpan = document.createElement('span');
+        durationSpan.className = 'duration';
+        const duration = message.audioDuration ? Math.round(message.audioDuration) : 0;
+        durationSpan.textContent = duration > 0 ? `${duration}s` : '';
+
+        bubble.appendChild(playButton);
+        bubble.appendChild(waveform);
+        bubble.appendChild(durationSpan);
+    } else {
+        const contentSpan = document.createElement('span');
+        contentSpan.className = 'message-content';
+        contentSpan.innerHTML = parseMarkdown(content);
+        bubble.appendChild(contentSpan);
+
+        if (sender === 'ai' && type === 'text') {
+            const requestButton = document.createElement('button');
+            requestButton.className = 'visual-request-button';
+            requestButton.innerHTML = ICONS.play;
+            bubble.appendChild(requestButton);
+        }
+    }
+
+    if (timestamp && type !== 'image') { // Don't show timestamp on image bubbles for cleaner UI
+        const timestampSpan = document.createElement('div');
+        timestampSpan.className = 'timestamp';
+        const { localTime } = getContextualTime(timestamp, character.timezone);
+        timestampSpan.textContent = `${formatTimestamp(timestamp)} (${localTime})`;
+        bubble.appendChild(timestampSpan);
+    }
+
+    chatScreenElements.messages.appendChild(bubble);
+    chatScreenElements.messages.scrollTop = chatScreenElements.messages.scrollHeight;
+    return bubble;
 }
 
 const ICONS = {
@@ -1461,102 +1659,6 @@ async function generateSpeechData(character: Character, instruction: string): Pr
     return { audioDataUrl, duration, dialogue };
 }
 
-function appendMessageBubble(message: Message): HTMLDivElement {
-    const { sender, content, timestamp, type = 'text' } = message;
-    
-    const bubble = document.createElement('div');
-    bubble.className = `message-bubble ${sender}`;
-
-    if (type === 'image' && message.imageDataUrl) {
-        bubble.classList.add('image');
-        const img = document.createElement('img');
-        img.src = message.imageDataUrl;
-        img.alt = sender === 'user' ? 'User uploaded image' : 'AI generated image';
-        
-        img.addEventListener('click', () => {
-             openImageViewer({
-                imageDataUrl: message.imageDataUrl,
-                promptText: content, // The prompt is stored in the content for AI images
-            });
-        });
-
-        bubble.appendChild(img);
-    } else if (type === 'voice') {
-        bubble.classList.add('voice');
-
-        const playButton = document.createElement('button');
-        playButton.className = 'play-btn';
-        playButton.innerHTML = ICONS.play;
-        playButton.setAttribute('aria-label', `Play voice note`);
-
-        if (!message.audioDataUrl) {
-            // This is a placeholder for a voice note being generated
-            playButton.innerHTML = ICONS.spinner;
-            playButton.disabled = true;
-        } else {
-            playButton.addEventListener('click', () => {
-                 if (currentPlayingUserAudio && !currentPlayingUserAudio.paused && currentPlayingUserAudioBtn === playButton) {
-                    currentPlayingUserAudio.pause();
-                 } else {
-                    stopAllOtherAudio(playButton);
-                    
-                    currentPlayingUserAudio = new Audio(message.audioDataUrl);
-                    currentPlayingUserAudioBtn = playButton;
-                    
-                    currentPlayingUserAudio.play();
-                    playButton.innerHTML = ICONS.pause;
-                    playButton.classList.add('playing');
-                    
-                    const onEnd = () => {
-                        playButton.innerHTML = ICONS.play;
-                        playButton.classList.remove('playing');
-                        if (currentPlayingUserAudioBtn === playButton) {
-                            currentPlayingUserAudio = null;
-                            currentPlayingUserAudioBtn = null;
-                        }
-                    };
-                    currentPlayingUserAudio.onpause = onEnd;
-                    currentPlayingUserAudio.onended = onEnd;
-                 }
-            });
-        }
-        
-        const waveform = document.createElement('div');
-        waveform.className = 'waveform';
-        if (message.audioDataUrl) { // Only render waveform for complete VNs
-             for (let i = 0; i < 20; i++) {
-                const bar = document.createElement('div');
-                bar.style.height = `${Math.random() * 80 + 20}%`;
-                waveform.appendChild(bar);
-            }
-        }
-       
-        const durationSpan = document.createElement('span');
-        durationSpan.className = 'duration';
-        const duration = message.audioDuration ? Math.round(message.audioDuration) : 0;
-        durationSpan.textContent = duration > 0 ? `${duration}s` : '';
-
-        bubble.appendChild(playButton);
-        bubble.appendChild(waveform);
-        bubble.appendChild(durationSpan);
-    } else {
-        const contentSpan = document.createElement('span');
-        contentSpan.className = 'message-content';
-        contentSpan.innerHTML = parseMarkdown(content);
-        bubble.appendChild(contentSpan);
-    }
-
-    if (timestamp && type !== 'image') { // Don't show timestamp on image bubbles for cleaner UI
-        const timestampSpan = document.createElement('div');
-        timestampSpan.className = 'timestamp';
-        timestampSpan.textContent = formatTimestamp(timestamp);
-        bubble.appendChild(timestampSpan);
-    }
-
-    chatScreenElements.messages.appendChild(bubble);
-    chatScreenElements.messages.scrollTop = chatScreenElements.messages.scrollHeight;
-    return bubble;
-}
 
 function renderMediaGallery() {
     if (!activeCharacterId) return;
@@ -1876,6 +1978,7 @@ async function handleSaveCharacter() {
         media: [],
         timezone: timezone,
         intimacyLevel: initialIntimacy,
+        innatePowerReleased: false, // Initialize the new flag
     };
     
     characters.push(newCharacter);
@@ -2051,21 +2154,23 @@ Respond ONLY with a JSON object conforming to the schema.`;
         // Round to 1 decimal place for cleaner display
         const roundedChange = Math.round(change * 10) / 10;
         
+        const oldIntimacyLevel = character.intimacyLevel;
         character.intimacyLevel += roundedChange;
-        // Clamp the value between -100 and 100
-        character.intimacyLevel = Math.max(-100, Math.min(100, character.intimacyLevel));
         // Round final level to 1 decimal place
         character.intimacyLevel = Math.round(character.intimacyLevel * 10) / 10;
         
-        console.log(`Intimacy change: ${roundedChange}. Reason: ${result.reason}. New level: ${character.intimacyLevel}`);
+        console.log(`Intimacy change: ${roundedChange}. Reason: ${result.reason}. New internal level: ${character.intimacyLevel}`);
         
+        // Determine the displayed intimacy level (clamped)
+        const displayedIntimacyLevel = Math.max(-100, Math.min(100, character.intimacyLevel));
+
         // Show intimacy progress notification if enabled
         if (userProfile?.showIntimacyProgress && Math.abs(roundedChange) >= 0.1) {
-            showIntimacyProgressNotification(roundedChange, result.reason, character.intimacyLevel);
+            showIntimacyProgressNotification(roundedChange, result.reason, displayedIntimacyLevel);
         }
-        
+
         await saveAppState({ userProfile, characters });
-        renderChatHeader(character); // Update the UI with the new level
+        renderChatHeader(character); // Update the UI with the new level (which will use the clamped value)
 
     } catch (error) {
         console.error("Failed to update intimacy level:", error);
@@ -2157,7 +2262,7 @@ async function generateAIResponse(userInput: { text: string; image?: { dataUrl: 
                 typingIndicator.remove();
             }
             if (!aiBubbleElement) {
-                aiBubbleElement = appendMessageBubble({ sender: 'ai', content: '', timestamp: '', type: 'text' });
+                aiBubbleElement = appendMessageBubble({ sender: 'ai', content: '', timestamp: '', type: 'text' }, character);
                 contentSpan = aiBubbleElement.querySelector('.message-content');
             }
 
@@ -2173,7 +2278,8 @@ async function generateAIResponse(userInput: { text: string; image?: { dataUrl: 
         const imageMatch = fullResponseText.match(/\[GENERATE_IMAGE:(.*?)\]/s);
         const videoMatch = fullResponseText.match(/\[GENERATE_VIDEO:(.*?)\]/s);
         const voiceMatch = fullResponseText.match(/\[GENERATE_VOICE:(.*?)\]/s);
-        let cleanedResponse = fullResponseText.replace(/\[GENERATE_(IMAGE|VIDEO|VOICE):.*?\]/gs, '').trim();
+        const innatePowerMatch = fullResponseText.match(/\[INNATE_POWER_RELEASE:\s*(LOW|MID|HIGH|MAX):\s*(.*?)\]/i);
+        let cleanedResponse = fullResponseText.replace(/\[GENERATE_(IMAGE|VIDEO|VOICE):.*?\]/gs, '').replace(/\[INNATE_POWER_RELEASE:.*?\]/gs, '').trim();
 
         // If AI response is empty after cleaning, provide a default message
         if (!cleanedResponse) {
@@ -2194,13 +2300,35 @@ async function generateAIResponse(userInput: { text: string; image?: { dataUrl: 
         } else { // If no bubble element was created yet, create one and append
             const aiTextMessage: Message = { sender: 'ai', content: cleanedResponse, timestamp: finalTimestampISO, type: 'text' };
             character.chatHistory.push(aiTextMessage);
-            appendMessageBubble(aiTextMessage);
+            appendMessageBubble(aiTextMessage, character);
         }
 
         await saveAppState({ userProfile, characters });
 
         // After a response (even a default one), analyze and update intimacy
         await updateIntimacyLevel(character, userInput.text, cleanedResponse);
+
+        // Handle innate power release notification
+        if (innatePowerMatch) {
+            const level = innatePowerMatch[1].toUpperCase() as 'LOW' | 'MID' | 'HIGH' | 'MAX';
+            const effect = innatePowerMatch[2].trim();
+            const characterRace = character.characterProfile.basicInfo.race.toLowerCase();
+            const powerSystem = racePowerSystems[characterRace];
+
+            if (powerSystem) {
+                let powerEffectDescription = '';
+                switch (level) {
+                    case 'LOW': powerEffectDescription = powerSystem.lowEffect; break;
+                    case 'MID': powerEffectDescription = powerSystem.midEffect; break;
+                    case 'HIGH': powerEffectDescription = powerSystem.highEffect; break;
+                    case 'MAX': powerEffectDescription = powerSystem.maxEffect; break;
+                }
+                showIntimacyProgressNotification(0, `${character.characterProfile.basicInfo.name}'s innate power "${powerSystem.name}" released at ${level} level! Effect: ${effect}`, character.intimacyLevel);
+                character.currentPowerLevel = level;
+                character.lastPowerTrigger = finalTimestampISO;
+                await saveAppState({ userProfile, characters });
+            }
+        }
 
         if (imageMatch?.[1]) await handleGenerateImageRequest(imageMatch[1].trim());
         if (videoMatch?.[1]) await handleGenerateVideoRequest(videoMatch[1].trim());
@@ -2210,7 +2338,7 @@ async function generateAIResponse(userInput: { text: string; image?: { dataUrl: 
     } catch (error) {
         console.error('Chat AI response error:', error);
         if (typingIndicator.parentNode) typingIndicator.remove();
-        appendMessageBubble({ sender: 'ai', content: 'Sorry, I had trouble responding. Please try again.', timestamp: new Date().toISOString() });
+        appendMessageBubble({ sender: 'ai', content: 'Sorry, I had trouble responding. Please try again.', timestamp: new Date().toISOString() }, character);
     } finally {
         isGeneratingResponse = false;
     }
@@ -2231,7 +2359,7 @@ async function handleChatSubmit(e: Event) {
     const isoTimestamp = new Date().toISOString();
     const userMessage: Message = { sender: 'user', content: userInput, timestamp: isoTimestamp };
     character.chatHistory.push(userMessage);
-    appendMessageBubble(userMessage);
+    appendMessageBubble(userMessage, character);
     await saveAppState({ userProfile, characters });
 
     await generateAIResponse({ text: userInput });
@@ -2475,13 +2603,12 @@ Your description MUST NOT repeat those details and MUST be consistent with the n
 **YOUR TASK:**
 - In 1 concise paragraph, describe: facial expression, mood, micro-actions/pose, and immediate body condition (e.g., sleepy eyes, damp hair/skin, light sweat, relaxed posture, exhausted slouch, etc.) as appropriate to the context.
 - Make it specific, cinematic, and grounded in the current situation (home vs outside, night vs morning, resting vs active).
-- Do NOT describe clothing/outfit, hair color/style, ethnicity, or a generic location.
 - Examples:
   - "Her eyelids heavy and lips parted in a drowsy half-smile, she tugs the duvet up to her chin and leans closer to the camera as the bedside lamp washes her face in warm light."
   - "Breathing a little fast, she steadies herself against the bathroom sink, cheeks flushed and a few stray droplets still on her collarbone, giving a small triumphant grin."
 
-**DO NOT DESCRIBE:**
-- Hair color or style.
+**DO NOT DESCRIBE (If still in the same session or context.):**
+- Hair color or style. 
 - Ethnicity or race.
 - General clothing/outfit.
 - Room/location names explicitly.
@@ -2492,7 +2619,7 @@ Your description MUST NOT repeat those details and MUST be consistent with the n
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: promptForDirector,
-            config: { temperature: 0.5 },
+            config: { temperature: 2.0 },
         });
         return response.text.trim();
     } catch (error) {
@@ -2598,11 +2725,20 @@ JSON:`;
     }
 }
 
-async function constructMediaPrompt(character: Character, sceneDescription: string): Promise<string> {
+async function constructMediaPrompt(character: Character, userPrompt: string): Promise<string> {
     const { basicInfo, physicalStyle } = character.characterProfile;
     const now = Date.now();
 
-    // --- Part 1: Extract Core Details ---
+    // --- Part 1: Parse Perspective from userPrompt ---
+    let perspective: 'selfie' | 'viewer' = 'selfie'; // Default to selfie
+    let cleanedUserPrompt = userPrompt;
+    const perspectiveMatch = userPrompt.match(/<perspective:\s*(selfie|viewer)>/i);
+    if (perspectiveMatch && perspectiveMatch[1]) {
+        perspective = perspectiveMatch[1].toLowerCase() as 'selfie' | 'viewer';
+        cleanedUserPrompt = userPrompt.replace(perspectiveMatch[0], '').trim();
+    }
+
+    // --- Part 2: Extract Core Details ---
     const age = basicInfo.age;
     const rawRaceOrDescent = basicInfo.ethnicity;
     const rawHairStyle = `${physicalStyle.hairColor} ${getRandomElement(physicalStyle.hairStyle)}`; // Select random hair style
@@ -2617,21 +2753,33 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
         translateTextToEnglish(rawHairStyle)
     ]);
 
-    // --- Part 2: Session Context (Location & Hairstyle) ---
+    // --- Part 3: Session Context (Location & Hairstyle) ---
     // Infer contextual micro-location
     const lastMessageContent = character.chatHistory
         .filter(m => m.sender === 'ai' && m.type !== 'image')
-        .pop()?.content || '';
+        .pop()?.content || 'A neutral, happy mood.';
+    const sceneDescription = await generateSceneDescription(character, cleanedUserPrompt, lastMessageContent);
     const plan = await inferContextualLocation(character, sceneDescription, lastMessageContent);
     const sessionLocation = plan.location || basicInfo.cityOfResidence;
 
-    activeCharacterSessionContext = {
-        ...activeCharacterSessionContext,
-        hairstyle: sessionHairstyle,
-        timestamp: now
-    };
+    const { timeDescription, localTime } = getContextualTime(new Date().toISOString(), character.timezone);
 
-    // --- Part 3: Race Visual Characteristics ---
+    // Update session context with current location and time for future comparisons
+    if (activeCharacterSessionContext) {
+        activeCharacterSessionContext.hairstyle = sessionHairstyle;
+        activeCharacterSessionContext.timestamp = now;
+        activeCharacterSessionContext.location = sessionLocation; // Store for outfit logic
+        activeCharacterSessionContext.timeDescription = timeDescription; // Store for outfit logic
+    } else {
+        activeCharacterSessionContext = {
+            hairstyle: sessionHairstyle,
+            timestamp: now,
+            location: sessionLocation,
+            timeDescription: timeDescription,
+        } as SessionContext;
+    }
+
+    // --- Part 4: Race Visual Characteristics ---
     let raceVisualDescription = '';
     if (basicInfo.race && basicInfo.race.toLowerCase() !== 'human') {
         const race = basicInfo.race.toLowerCase();
@@ -2666,9 +2814,20 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
         }
     }
 
-    // --- Part 4: Generate/Retrieve Session Outfit ---
+    // --- Part 5: Generate/Retrieve Session Outfit based on context changes ---
     let outfitDescription: string;
-    if (activeCharacterSessionContext?.outfit) {
+    const previousLocation = activeCharacterSessionContext?.location;
+    const previousTimeDescription = activeCharacterSessionContext?.timeDescription;
+
+    const hasLocationChanged = previousLocation !== sessionLocation;
+    const hasTimeChangedSignificantly = previousTimeDescription !== timeDescription && (
+        (timeDescription === 'night' && previousTimeDescription !== 'night') ||
+        (timeDescription === 'morning' && previousTimeDescription !== 'morning') ||
+        (timeDescription === 'evening' && previousTimeDescription !== 'evening') ||
+        (timeDescription === 'afternoon' && previousTimeDescription !== 'afternoon')
+    );
+
+    if (activeCharacterSessionContext?.outfit && !hasLocationChanged && !hasTimeChangedSignificantly) {
         outfitDescription = activeCharacterSessionContext.outfit;
         console.log(`Reusing session outfit: ${outfitDescription}`);
     } else {
@@ -2679,9 +2838,7 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
         }
     }
 
-    // --- Part 5: Build the new, structured prompt ---
-    const { timeDescription } = getContextualTime(new Date().toISOString(), character.timezone);
-    
+    // --- Part 6: Build the new, structured prompt ---
     const genderPronoun = character.characterProfile.basicInfo.gender === 'male' ? 'him' : 'her';
     const genderNoun = character.characterProfile.basicInfo.gender === 'male' ? 'man' : 'woman';
 
@@ -2695,27 +2852,32 @@ async function constructMediaPrompt(character: Character, sceneDescription: stri
 
     // Contextual bedtime look adjustments
     const isBedroom = /bedroom|bed|pillow|duvet/i.test(sessionLocation);
-    const isNight = /night|evening/i.test(timeDescription);
-    const bedtimeLook = (isBedroom && isNight)
+    const isNightTime = /night|evening/i.test(timeDescription);
+    const bedtimeLook = (isBedroom && isNightTime)
         ? ` No makeup (bare skin, no visible eyeliner or eyeshadow), natural lips; hair loose and slightly messy (bedhead).`
         : '';
 
-    const selfieComposition = `Composition: first-person selfie with the front camera; tight portrait framing from chest up; arm slightly extended out of frame holding the phone (phone remains out of frame); slight smartphone-lens distortion; no tripod, no third-person viewpoint.`;
+    let compositionInstruction = '';
+    if (perspective === 'selfie') {
+        compositionInstruction = `Composition: first-person selfie with the front camera; tight portrait framing from chest up; arm slightly extended out of frame holding the phone (phone remains out of frame); slight smartphone-lens distortion; no tripod, no third-person viewpoint.`;
+    } else { // viewer perspective
+        compositionInstruction = `Composition: from the user's viewpoint, looking directly at the character; tight portrait framing from chest up; shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.`;
+    }
 
-    const consistencyInstruction = `CRITICAL INSTRUCTION: The character must have the exact same clothing, hair, and overall appearance as the reference image. Ensure perfect visual consistency. The outfit is: ${outfitDescription}.`;
+    const consistencyInstruction = `CRITICAL INSTRUCTION: The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit is: ${outfitDescription}. Pose, expression, hairstyle, makeup, and immediate body condition (e.g., wet, sweaty, sleepy) should be dynamic and match the scene.`;
 
     const prompt = (
-        `Make ${genderPronoun} take a first-person selfie with the front camera, ` +
+        `An ultra-realistic, high detail, photographic quality image of a ` +
         `${age}-year-old ${raceOrDescent} ${genderNoun}${raceVisualDescription}. ` +
         `${genderPronoun === 'him' ? 'His' : 'Her'} hair is ${sessionHairstyle}. ` +
         `${genderPronoun === 'him' ? 'He' : 'She'} is wearing ${outfitDescription}.` +
         bedtimeLook + ' ' +
         `${sanitizedScene} ` +
         `${genderPronoun === 'him' ? 'He' : 'She'} is in ${sessionLocation} during ${timeDescription}${lightingNote}. ` +
-        `${selfieComposition} ` +
+        `${compositionInstruction} ` +
         `Ensure the visual setting matches this micro-location. ` +
         `${consistencyInstruction} ` +
-        `Ultra-realistic, high detail, photographic quality, shallow depth of field, modern natural look. 9:16 portrait orientation. ` +
+        `9:16 portrait orientation. ` +
         `-- no phone visible in the frame, no 3D, no CGI, no digital image.`
     ).trim().replace(/\s\s+/g, ' ');
 
@@ -3014,7 +3176,7 @@ async function handleGenerateImageRequest(
                 imageDataUrl: newMedia.data as string,
             };
             character.chatHistory.push(aiImageMessage);
-            appendMessageBubble(aiImageMessage);
+            appendMessageBubble(aiImageMessage, character);
             
             // Update context for next chained generation if it was AI-initiated
             if (isAiInitiated && activeCharacterSessionContext) {
@@ -3050,12 +3212,7 @@ async function handleGenerateVoiceRequest(instruction: string) {
     if (!activeCharacterId) return;
     const character = characters.find(c => c.id === activeCharacterId)!;
 
-    const placeholder = appendMessageBubble({
-        sender: 'ai',
-        content: '',
-        timestamp: new Date().toISOString(),
-        type: 'voice',
-    });
+    const placeholder = appendMessageBubble({ sender: 'ai', content: '', timestamp: '', type: 'voice' }, character);
 
     try {
         const speechData = await generateSpeechData(character, instruction);
@@ -3073,7 +3230,7 @@ async function handleGenerateVoiceRequest(instruction: string) {
         await saveAppState({ userProfile, characters });
 
         placeholder.remove();
-        appendMessageBubble(voiceMessage);
+        appendMessageBubble(voiceMessage, character);
 
     } catch (error) {
         console.error('Failed to generate voice note:', error);
@@ -3981,7 +4138,7 @@ async function handleRecordingStop() {
         audioDuration: duration,
     };
     character.chatHistory.push(userMessage);
-    appendMessageBubble(userMessage);
+    appendMessageBubble(userMessage, character);
     await saveAppState({ userProfile, characters });
 
     await transcribeAndSend(audioBlob, userMessage);
@@ -4037,7 +4194,7 @@ async function handlePhotoUpload(e: Event) {
     };
 
     // Append a loading bubble immediately
-    const loadingBubble = appendMessageBubble(tempMessage);
+    const loadingBubble = appendMessageBubble(tempMessage, character);
     loadingBubble.classList.add('loading-image'); // Add a class to style the loading state
 
     try {
@@ -4818,7 +4975,7 @@ async function init() {
                 };
 
                 character.chatHistory.push(userMessage);
-                appendMessageBubble(userMessage);
+                appendMessageBubble(userMessage, character);
                 await saveAppState({ userProfile, characters });
 
                 await generateAIResponse({
@@ -5104,7 +5261,7 @@ async function init() {
                 imageDataUrl: newMedia.data as string,
             };
             character.chatHistory.push(aiImageMessage);
-            appendMessageBubble(aiImageMessage);
+            appendMessageBubble(aiImageMessage, character);
             await saveAppState({ userProfile, characters });
 
 

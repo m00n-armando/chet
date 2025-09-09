@@ -580,8 +580,8 @@ select option {
     font-size: 0.75rem;
     color: var(--text-secondary-color);
     margin-top: 0.25rem;
-    text-align: right;
-    width: 100%;
+    text-align: left;
+    padding-left: 1rem;
 }
 .message-bubble.user .timestamp {
     color: rgba(255, 255, 255, 0.7);
@@ -721,7 +721,7 @@ select option {
 .message-bubble.voice .timestamp {
     position: absolute;
     bottom: 4px;
-    right: 12px;
+    left: 12px;
     margin: 0;
 }
 
@@ -1856,4 +1856,36 @@ input:checked + .slider:before {
     .chat-form {
         padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
     }
+}
+
+.message-bubble {
+    position: relative; /* Add position relative to the message bubble */
+}
+
+.visual-request-button {
+    background-color: #1a237e;
+    border: none;
+    color: white;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    font-size: 0;
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+}
+
+.visual-request-button svg {
+    width: 16px;
+    height: 16px;
+    fill: rgb(255, 196, 0);
+}
+
+.message-bubble.ai  {
+    margin-right: 0;
 }
