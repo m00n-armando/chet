@@ -37,7 +37,8 @@
 import { GoogleGenAI, Type, Chat, HarmBlockThreshold, HarmCategory, GenerateContentResponse, Modality, Part } from "@google/genai";
 import { saveAppState, loadAppState, blobToBase64, base64ToBlob } from './storageServices';
 import JSZip from 'jszip';
-import React, { useState } from 'react'; // Import useState
+import React, { useState, useEffect } from 'react'; // Import useState and useEffect
+import ReactDOM from 'react-dom/client'; // Import ReactDOM for React 18
 import { inject } from '@vercel/analytics';
 import { injectSpeedInsights } from '@vercel/speed-insights';
 import SplashScreen from './SplashScreen'; // Import the SplashScreen component
@@ -4740,53 +4741,18 @@ function matchChatAndMediaHeights() {
 
 // --- INITIALIZATION ---
 async function init() {
-    let showSplash = true;
-
-    const handleAnimationEnd = () => {
-        showSplash = false;
-        // Continue with the rest of initialization after splash screen
+    const splashContainer = document.getElementById('splash-container');
+    if (splashContainer) {
+        const root = ReactDOM.createRoot(splashContainer);
+        root.render(
+            <SplashScreen version={APP_VERSION} onAnimationEnd={continueInit} />
+        );
+    } else {
         continueInit();
-    };
-
-    if (showSplash) {
-        // Show splash screen
-        const splashContainer = document.getElementById('splash-container');
-        if (splashContainer) {
-            // Create splash screen HTML structure
-            splashContainer.innerHTML = `
-                <div id="splash-screen" class="splash-screen">
-                    <img src="/logo.png" alt="CHET Logo" class="splash-logo" />
-                    <div class="splash-version">v${APP_VERSION}</div>
-                </div>
-            `;
-
-            const splashScreen = document.getElementById('splash-screen');
-            if (splashScreen) {
-                // Add fade-in class
-                setTimeout(() => {
-                    splashScreen.classList.add('fade-in');
-                }, 100);
-
-                // Set timeout to fade out and continue
-                setTimeout(() => {
-                    splashScreen.classList.add('fade-out');
-                    // Give some time for the fade-out animation before calling onAnimationEnd
-                    setTimeout(handleAnimationEnd, 500);
-                }, 3000); // Display for 3 seconds
-            } else {
-                handleAnimationEnd();
-            }
-        } else {
-            handleAnimationEnd();
-        }
-        return;
     }
-
-    continueInit();
 }
 
 async function continueInit() {
-
     initializeGenAI();
 
     const loadedState = await loadAppState();
