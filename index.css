@@ -16,6 +16,9 @@
   --heart-color: #ff3b30;
 }
 
+body, #app-container, #phone-ui {
+    touch-action: pan-y;
+}
 * {
   box-sizing: border-box;
   margin: 0;
@@ -1604,6 +1607,7 @@ input:checked + .slider:before {
     max-height: 100%;
     cursor: grab;
     transition: transform 0.1s ease-out;
+    touch-action: none;
 }
 #viewer-img.panning {
     cursor: grabbing;
