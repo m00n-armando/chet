@@ -621,34 +621,37 @@ const intimacyToggle = document.getElementById('intimacy-toggle') as HTMLInputEl
 
 
 // --- API INITIALIZATION ---
-function initializeGenAI(apiKey?: string): boolean {
-    const key = apiKey || ((import.meta as any).env?.VITE_GEMINI_API_KEY as string) || localStorage.getItem('chet_api_key');
+// Modified to return a Promise<boolean>
+function initializeGenAI(apiKey?: string): Promise<boolean> {
+    return new Promise(resolve => {
+        const key = apiKey || ((import.meta as any).env?.VITE_GEMINI_API_KEY as string) || localStorage.getItem('chet_api_key');
 
-    if (key) {
-        try {
-            ai = new GoogleGenAI({ apiKey: key });
-            console.log("GoogleGenAI initialized successfully.");
-            console.log("API Key used (first 4 chars):", key.substring(0, 4));
-            localStorage.setItem('chet_api_key', key);
-            modals.apiKey.style.display = 'none';
-            updateSettingsUI();
-            return true;
-        } catch (error) {
-            console.error("Error initializing GoogleGenAI:", error);
-            alert("Failed to initialize Google GenAI. The API Key might be invalid.");
-            localStorage.removeItem('chet_api_key');
+        if (key) {
+            try {
+                ai = new GoogleGenAI({ apiKey: key });
+                console.log("GoogleGenAI initialized successfully.");
+                console.log("API Key used (first 4 chars):", key.substring(0, 4));
+                localStorage.setItem('chet_api_key', key);
+                modals.apiKey.style.display = 'none';
+                updateSettingsUI();
+                resolve(true);
+            } catch (error) {
+                console.error("Error initializing GoogleGenAI:", error);
+                alert("Failed to initialize Google GenAI. The API Key might be invalid.");
+                localStorage.removeItem('chet_api_key');
+                modals.apiKey.style.display = 'flex';
+                ai = null;
+                updateSettingsUI();
+                resolve(false);
+            }
+        } else {
+            console.warn("API Key not found.");
             modals.apiKey.style.display = 'flex';
             ai = null;
             updateSettingsUI();
-            return false;
+            resolve(false);
         }
-    } else {
-        console.warn("API Key not found.");
-        modals.apiKey.style.display = 'flex';
-        ai = null;
-        updateSettingsUI();
-        return false;
-    }
+    });
 }
 
 function logAIStatus() {
@@ -4791,7 +4794,28 @@ async function init() {
 }
 
 async function continueInit() {
-    initializeGenAI();
+    let aiInitialized = await initializeGenAI();
+
+    // If AI is not initialized, we need to wait for the user to provide a valid key
+    if (!aiInitialized) {
+        await new Promise<void>(resolve => {
+            const handleApiKeySubmit = async (e: Event) => {
+                e.preventDefault();
+                const key = apiKeyInput.value.trim();
+                if (key) {
+                    const success = await initializeGenAI(key);
+                    if (success) {
+                        apiKeyForm.removeEventListener('submit', handleApiKeySubmit);
+                        resolve(); // Resolve the promise, allowing continueInit to proceed
+                    }
+                    // If not successful, the modal remains open, and the user can try again.
+                }
+            };
+            // Attach the temporary event listener for API key submission
+            apiKeyForm.addEventListener('submit', handleApiKeySubmit);
+            modals.apiKey.style.display = 'flex'; // Ensure the modal is visible
+        });
+    }
 
     const loadedState = await loadAppState();
     if (loadedState) {
@@ -4809,7 +4833,7 @@ async function continueInit() {
         characters = rawCharacters.map(migrateCharacter);
     }
 
-renderUserProfile();
+    renderUserProfile();
     renderContacts();
     showScreen('home');
     
@@ -4874,15 +4898,8 @@ renderUserProfile();
     });
     userProfileForm.addEventListener('submit', handleUserProfileSubmit);
     
-    apiKeyForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        if (apiKeyInput) {
-            const key = apiKeyInput.value.trim();
-            if (key) {
-                initializeGenAI(key);
-            }
-        }
-    });
+    // Removed the global apiKeyForm.addEventListener here, as it's now handled within continueInit for initial setup.
+    // For settings, the updateSettingsUI already handles the display, and the clear-api-key-btn handles removal.
 
     document.getElementById('settings-btn')!.addEventListener('click', () => {
         console.log('Settings button clicked');
