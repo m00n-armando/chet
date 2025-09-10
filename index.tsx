@@ -1244,9 +1244,9 @@ async function startChat(characterId: string) {
      - Your core physical details (face, body type, skin tone, eye color) MUST remain consistent with your avatar/last generated image.
      - Your pose, expression, hairstyle, makeup, and immediate body condition (e.g., wet, sweaty, sleepy) CAN change based on the scene and context.
      - Your outfit:
-      - Prioritize maintaining the clothing items described in the chat, unless the narrative context necessitates a complete outfit change.
+      - Prioritize maintaining the clothing items and colors described in the chat and reference image if still in the same moment, unless the narrative context necessitates a complete outfit change.
       - Generate a new, contextually appropriate outfit ONLY if the character changes location (e.g., from home to outside), activity (e.g., from sleeping to going out), or if the described clothing is clearly inappropriate for the new context.
-      - If the narrative context (location, time, activity) is similar to the previous image, reuse the last known outfit, modifying only details (e.g., adding a jacket if it's cold).
+      - If the narrative context (location, time, activity) is similar to the previous image, reuse the last known outfit (style and color), modifying only details (e.g., adding a jacket if it's cold).
     - The image reference is for subject consistency only. You must be intelligent in reading the chat context to create the prompt.
  - Video: [GENERATE_VIDEO: a short, descriptive prompt for a selfie video.]
  - Voice Note: [GENERATE_VOICE: a short, emotional message to be spoken.]
