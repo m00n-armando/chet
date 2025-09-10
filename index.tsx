@@ -4,7 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ---CHET v.2.1.6---
+// ---CHET v.2.1.7---
+// Changelog v.2.1.7:
+// - Implemented chat temperature and safety level settings for user customization.
+// - Updated `UserProfile` interface to store `chatTemperature` and `chatSafetyLevel`.
+// - Modified `updateSettingsUI` to reflect saved chat temperature and safety level.
+// - Added event listeners for chat temperature and safety level inputs to update user preferences.
+// - Applied user-defined chat temperature and safety level to new chat sessions.
 // Changelog v.2.1.6:
 // - Refined AI prompt generation to prevent image creation failures.
 // - Added reference image display to the "Edit & Retry" modal for better context.
@@ -14,25 +20,6 @@
 // Changelog v.2.1.5:
 // - Add innate power level systems to character.
 // - Add innate power AI mechanism auto trigger.
-// Changelog v.2.1.4:
-// - Add generate image button in the chat bubble.
-// - Add detailed prompt generator for chat or face to face interactions.
-// - Add intimacy tier on the header chat.
-// - Add intimacy beyond 100 and below -100.
-// Changelog v.2.1.3:
-// - Replaced full-screen loading indicator with a local loading indicator for user-sent images.
-// - Improved image viewer: added double-tap to reset zoom, always visible controls, and persistent prompt panel during zoom.
-// Changelog v.2.1.2:
-// - AI now aware of transgender definitions for improved roleplay and narration.
-// - Replaced `${userProfile?.name || 'User'}` with dynamic user name for personalization.
-// - Added instruction for outfit consistency in media generation prompts.
-// Changelog v.2.1.1:
-// - Add dropdown for user-gender
-// - Add intimacy progress toggle
-// - Optimize mobile screen layout (full height, fixed header/footer, scrolling chat)
-// - Fix black gap at bottom of mobile screen
-// Changelog v.2.1.0:
-// - update roleplay rules
 
 import { GoogleGenAI, Type, Chat, HarmBlockThreshold, HarmCategory, GenerateContentResponse, Modality, Part } from "@google/genai";
 import { saveAppState, loadAppState, blobToBase64, base64ToBlob } from './storageServices';
@@ -58,6 +45,8 @@ interface UserProfile {
   gender?: string;
   showIntimacyMeter?: boolean;
   showIntimacyProgress?: boolean;
+  chatTemperature?: number; // New: User-defined chat temperature
+  chatSafetyLevel?: SafetyLevel; // New: User-defined chat safety level
 }
 
 // New detailed character profile structure
@@ -207,8 +196,8 @@ const safetySettingsMap: Record<SafetyLevel, any[]> = {
 };
 
 const generationConfig = {
-    temperature: 1.0,
-    safetySettings: safetySettingsMap.flexible,
+    temperature: 2.0,
+    safetySettings: safetySettingsMap.unrestricted,
 };
 
 const ROLE_TO_INTIMACY_MAP: Record<string, number> = {
@@ -626,7 +615,9 @@ const apiKeyInput = document.getElementById('api-key-input')! as HTMLInputElemen
 const apiKeyDisplay = document.getElementById('api-key-display')!;
 const videoToggle = document.getElementById('video-toggle')! as HTMLInputElement;
 const intimacyToggle = document.getElementById('intimacy-toggle')! as HTMLInputElement;
-const intimacyProgressToggle = document.getElementById('intimacy-progress-toggle') as HTMLInputElement | null;
+    const intimacyProgressToggle = document.getElementById('intimacy-progress-toggle') as HTMLInputElement | null;
+    const chatTemperatureInput = document.getElementById('chat-temperature-input') as HTMLInputElement;
+    const chatSafetyLevelRadios = document.querySelectorAll('input[name="chat-safety-level"]') as NodeListOf<HTMLInputElement>;
 
 
 // --- API INITIALIZATION ---
@@ -1268,7 +1259,8 @@ async function startChat(characterId: string) {
               })),
           config: {
             systemInstruction,
-            ...generationConfig
+            temperature: userProfile?.chatTemperature ?? generationConfig.temperature,
+            safetySettings: userProfile?.chatSafetyLevel ? safetySettingsMap[userProfile.chatSafetyLevel] : generationConfig.safetySettings,
           }
         });
         
@@ -4732,11 +4724,22 @@ function updateSettingsUI() {
         if (intimacyProgressToggle) {
             intimacyProgressToggle.checked = userProfile.showIntimacyProgress !== false;
         }
+        // Update temperature and safety level display
+        (document.getElementById('chat-temperature-input') as HTMLInputElement).value = (userProfile.chatTemperature ?? 1.0).toString();
+        const safetyLevelRadios = document.querySelectorAll('input[name="chat-safety-level"]');
+        safetyLevelRadios.forEach(radio => {
+            if ((radio as HTMLInputElement).value === (userProfile.chatSafetyLevel ?? 'unrestricted')) {
+                (radio as HTMLInputElement).checked = true;
+            }
+        });
     } else {
         intimacyToggle.checked = true; // Default
         if (intimacyProgressToggle) {
             intimacyProgressToggle.checked = true; // Default
         }
+        // Set default values for new settings
+        (document.getElementById('chat-temperature-input') as HTMLInputElement).value = '1.0';
+        (document.getElementById('chat-safety-level-unrestricted') as HTMLInputElement).checked = true;
     }
 }
 
@@ -4905,6 +4908,28 @@ renderUserProfile();
             userProfile.showIntimacyProgress = intimacyProgressToggle.checked;
             await saveAppState({ userProfile, characters });
         }
+    });
+
+    // New: Chat Temperature Setting
+    const chatTemperatureInput = document.getElementById('chat-temperature-input') as HTMLInputElement;
+    chatTemperatureInput.addEventListener('input', async () => {
+        if (userProfile) {
+            const temp = parseFloat(chatTemperatureInput.value);
+            if (!isNaN(temp) && temp >= 0 && temp <= 2) {
+                userProfile.chatTemperature = temp;
+                await saveAppState({ userProfile, characters });
+            }
+        }
+    });
+
+    // New: Chat Safety Level Setting
+    document.querySelectorAll('input[name="chat-safety-level"]').forEach(radio => {
+        radio.addEventListener('change', async (e) => {
+            if (userProfile) {
+                userProfile.chatSafetyLevel = (e.target as HTMLInputElement).value as SafetyLevel;
+                await saveAppState({ userProfile, characters });
+            }
+        });
     });
 
     importBtn.addEventListener('click', () => importFileInput.click());
