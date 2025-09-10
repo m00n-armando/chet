@@ -1280,8 +1280,6 @@ async function startChat(characterId: string) {
 
         const wallpaper = screens.chat;
         wallpaper.style.backgroundImage = `url(${character.avatar})`;
-        wallpaper.style.backgroundSize = 'cover';
-        wallpaper.style.backgroundPosition = 'center';
         
         // Initialize session context
         activeCharacterSessionContext = {

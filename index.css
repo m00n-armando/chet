@@ -472,6 +472,11 @@ select option {
 /* Chat Screen */
 .chat-header {
     justify-content: space-between;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 10;
 }
 #chat-header-info {
     flex-grow: 1;
@@ -554,23 +559,12 @@ select option {
     display: flex;
     flex-direction: column;
     overflow: hidden; /* Prevent the whole screen from scrolling */
+    height: 100%;
     position: relative;
     background-size: cover;
-    background-position: center;
-    justify-content: space-between;
-}
-#screen-chat::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 0;
-}
-.screen-header, .chat-messages, .chat-footer {
-    position: relative;
-    z-index: 1;
+    background-position: center top 75px;
+    background-repeat: no-repeat;
+    justify-content: flex-end;
 }
 .chat-messages {
     flex-grow: 1;
@@ -578,7 +572,10 @@ select option {
     min-height: 0; /* Add this to allow shrinking */
     overflow-x: hidden;
     padding: 1rem;
-    background: transparent;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: relative;
     display: flex;
     flex-direction: column;
     touch-action: pan-y;
