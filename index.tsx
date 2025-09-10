@@ -4752,10 +4752,30 @@ async function init() {
         // Show splash screen
         const splashContainer = document.getElementById('splash-container');
         if (splashContainer) {
-            splashContainer.innerHTML = '<div id="splash-screen"></div>';
-            // Note: Since SplashScreen is a React component but we're not using React root,
-            // we'll handle this differently or remove the splash screen for now
-            handleAnimationEnd(); // Skip splash for now to avoid React issues
+            // Create splash screen HTML structure
+            splashContainer.innerHTML = `
+                <div id="splash-screen" class="splash-screen">
+                    <img src="/logo.png" alt="CHET Logo" class="splash-logo" />
+                    <div class="splash-version">v${APP_VERSION}</div>
+                </div>
+            `;
+
+            const splashScreen = document.getElementById('splash-screen');
+            if (splashScreen) {
+                // Add fade-in class
+                setTimeout(() => {
+                    splashScreen.classList.add('fade-in');
+                }, 100);
+
+                // Set timeout to fade out and continue
+                setTimeout(() => {
+                    splashScreen.classList.add('fade-out');
+                    // Give some time for the fade-out animation before calling onAnimationEnd
+                    setTimeout(handleAnimationEnd, 500);
+                }, 3000); // Display for 3 seconds
+            } else {
+                handleAnimationEnd();
+            }
         } else {
             handleAnimationEnd();
         }
