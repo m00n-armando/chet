@@ -517,7 +517,10 @@ const chatScreenElements = {
     actionMenu: document.querySelector('.chat-action-menu')!,
     intimacyMeter: document.getElementById('intimacy-meter')!,
     intimacyLevel: document.getElementById('intimacy-level')!,
-    characterNameElement: document.getElementById('chat-character-name')!, // Add this line
+    characterNameElement: document.getElementById('chat-character-name')!,
+    innatePowerDisplay: document.getElementById('innate-power-display')!,
+    innatePowerName: document.getElementById('innate-power-name')!,
+    innatePowerDescription: document.getElementById('innate-power-description')!,
 };
 const characterEditorElements = {
     screen: document.getElementById('screen-edit-character')!,
@@ -1351,7 +1354,8 @@ function renderChatHeader(character: Character) {
     } else {
         chatScreenElements.intimacyMeter.classList.add('hidden');
     }
-    updateCharacterPowerDisplay(character); // Call the new function here
+    updateCharacterPowerDisplay(character);
+    updateInnatePowerDisplay(character); // Call the new function here
 }
 
 // Define power level colors
@@ -1369,6 +1373,35 @@ function updateCharacterPowerDisplay(character: Character) {
         characterNameElement.style.color = POWER_LEVEL_COLORS[character.currentPowerLevel];
     } else {
         characterNameElement.style.color = 'white'; // Default color
+    }
+}
+
+// Function to update innate power display
+function updateInnatePowerDisplay(character: Character) {
+    const innatePowerDisplay = chatScreenElements.innatePowerDisplay;
+    const innatePowerName = chatScreenElements.innatePowerName;
+    const innatePowerDescription = chatScreenElements.innatePowerDescription;
+
+    if (character.currentPowerLevel && character.currentPowerLevel !== null) {
+        const characterRace = character.characterProfile.basicInfo.race.toLowerCase();
+        const power = racePowerSystems[characterRace];
+
+        if (power) {
+            innatePowerName.textContent = `${power.name} (${character.currentPowerLevel})`;
+            let effectDescription = '';
+            switch (character.currentPowerLevel) {
+                case 'LOW': effectDescription = power.lowEffect; break;
+                case 'MID': effectDescription = power.midEffect; break;
+                case 'HIGH': effectDescription = power.highEffect; break;
+                case 'MAX': effectDescription = power.maxEffect; break;
+            }
+            innatePowerDescription.textContent = effectDescription;
+            innatePowerDisplay.classList.remove('hidden');
+        } else {
+            innatePowerDisplay.classList.add('hidden');
+        }
+    } else {
+        innatePowerDisplay.classList.add('hidden');
     }
 }
 
@@ -2467,7 +2500,8 @@ async function generateAIResponse(userInput: { text: string; image?: { dataUrl: 
                 character.currentPowerLevel = level;
                 character.lastPowerTrigger = finalTimestampISO;
                 await saveAppState({ userProfile, characters });
-                updateCharacterPowerDisplay(character); // Update display immediately
+                updateCharacterPowerDisplay(character); // Update character name color
+                updateInnatePowerDisplay(character); // Update innate power description display
 
                 // Set a timeout to clear the power level after a duration (e.g., 30 seconds)
                 setTimeout(async () => {
@@ -2475,13 +2509,11 @@ async function generateAIResponse(userInput: { text: string; image?: { dataUrl: 
                         character.currentPowerLevel = null;
                         character.lastPowerTrigger = undefined;
                         await saveAppState({ userProfile, characters });
-                        updateCharacterPowerDisplay(character); // Revert display
+                        updateCharacterPowerDisplay(character); // Revert character name color
+                        updateInnatePowerDisplay(character); // Hide innate power description
                         console.log(`Character power level for ${character.characterProfile.basicInfo.name} reverted.`);
                     }
                 }, 30000); // 30 seconds
-                character.currentPowerLevel = level;
-                character.lastPowerTrigger = finalTimestampISO;
-                await saveAppState({ userProfile, characters });
             }
         }
 
