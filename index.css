@@ -49,14 +49,17 @@ body {
    align-items: flex-start;
    width: 100%;
    padding: 0;
-   min-height: var(--actual-vh, 100vh);
+   height: 100dvh; 
    height: var(--actual-vh, 100vh);
 }
 
 #phone-ui {
-   position: relative;
+   position: fixed;
+   top: 0;
+   left: 0;
+   right: 0;
+   bottom: 0;
    width: 100%;
-   height: var(--actual-vh, 100vh);
    background: var(--background-color);
    display: flex;
    flex-direction: column;
@@ -85,7 +88,7 @@ body {
   display: flex;
   flex-direction: column;
   background-color: var(--background-color);
-  overflow-y: auto; /* Allow scrolling for screens */
+/*overflow-y: auto;  Allow scrolling for screens */
   -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
@@ -548,7 +551,26 @@ select option {
     height: 24px;
 }
 #screen-chat {
+    display: flex;
+    flex-direction: column;
     overflow: hidden; /* Prevent the whole screen from scrolling */
+    position: relative;
+    background-size: cover;
+    background-position: center;
+    justify-content: space-between;
+}
+#screen-chat::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 0;
+}
+.screen-header, .chat-messages, .chat-footer {
+    position: relative;
+    z-index: 1;
 }
 .chat-messages {
     flex-grow: 1;
@@ -556,14 +578,11 @@ select option {
     min-height: 0; /* Add this to allow shrinking */
     overflow-x: hidden;
     padding: 1rem;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
+    background: transparent;
     display: flex;
     flex-direction: column;
     touch-action: pan-y;
 }
-
 .message-bubble {
     max-width: 80%;
     padding: 0.75rem 1rem;
@@ -783,14 +802,17 @@ select option {
     0%, 80%, 100% { transform: scale(0); }
     40% { transform: scale(1.0); }
 }
+.chat-footer {
+    flex-shrink: 0; /* Mencegah footer menyusut */
+    z-index: 2;
+    background: var(--surface-color);
+    border-top: 1px solid var(--border-color);
+}
 .chat-form {
     display: flex;
     padding: 0.75rem;
-    border-top: 1px solid var(--border-color);
-    background: var(--surface-color);
     width: 100%; /* Ensure it spans full width */
-    z-index: 2; /* Ensure form is above messages area */
-    flex-shrink: 0;
+    align-items: center;
 }
 #chat-input {
     flex-grow: 1;

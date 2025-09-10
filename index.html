@@ -351,23 +351,25 @@
                 </button>
              </header>
              <div id="chat-messages" class="chat-messages"></div>
-             <form id="chat-form" class="chat-form">
-                <div class="chat-action-menu">
-                    <button type="button" id="chat-action-toggle" aria-label="Toggle chat actions">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2h6Z"></path></svg>
-                    </button>
-                    <div class="chat-actions">
-                        <button type="button" id="send-photo-btn">Send Photo</button>
-                        <button type="button" id="generate-image-btn">Generate Image</button>
-                        <button type="button" id="generate-video-btn">Generate Video</button>
-                        <button type="button" id="clear-chat-btn" class="destructive">Clear Chat</button>
-                        <button type="button" id="delete-character-btn" class="destructive">Delete Character</button>
+             <footer class="chat-footer">
+                <form id="chat-form" class="chat-form">
+                    <div class="chat-action-menu">
+                        <button type="button" id="chat-action-toggle" aria-label="Toggle chat actions">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2h6Z"></path></svg>
+                        </button>
+                        <div class="chat-actions">
+                            <button type="button" id="send-photo-btn">Send Photo</button>
+                            <button type="button" id="generate-image-btn">Generate Image</button>
+                            <button type="button" id="generate-video-btn">Generate Video</button>
+                            <button type="button" id="clear-chat-btn" class="destructive">Clear Chat</button>
+                            <button type="button" id="delete-character-btn" class="destructive">Delete Character</button>
+                        </div>
                     </div>
-                </div>
-               <textarea id="chat-input" placeholder="Type a message..." autocomplete="off" rows="1"></textarea>
-               <button type="submit" id="chat-submit-btn" aria-label="Send message">
-               </button>
-             </form>
+                <textarea id="chat-input" placeholder="Type a message..." autocomplete="off" rows="1"></textarea>
+                <button type="submit" id="chat-submit-btn" aria-label="Send message">
+                </button>
+                </form>
+             </footer>
           </div>
           <div id="screen-media-gallery" class="screen">
             <header class="screen-header">
