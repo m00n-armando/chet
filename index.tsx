@@ -627,6 +627,7 @@ function initializeGenAI(apiKey?: string): boolean {
         try {
             ai = new GoogleGenAI({ apiKey: key });
             console.log("GoogleGenAI initialized successfully.");
+            console.log("API Key used (first 4 chars):", key.substring(0, 4));
             localStorage.setItem('chet_api_key', key);
             modals.apiKey.style.display = 'none';
             updateSettingsUI();
@@ -647,6 +648,11 @@ function initializeGenAI(apiKey?: string): boolean {
         updateSettingsUI();
         return false;
     }
+}
+
+function logAIStatus() {
+    console.log("AI object status:", ai ? "Initialized" : "Not Initialized");
+}
 }
 
 
