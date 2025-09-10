@@ -653,7 +653,6 @@ function initializeGenAI(apiKey?: string): boolean {
 function logAIStatus() {
     console.log("AI object status:", ai ? "Initialized" : "Not Initialized");
 }
-}
 
 
 // --- UTILITY FUNCTIONS ---
