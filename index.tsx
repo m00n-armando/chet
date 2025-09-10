@@ -408,11 +408,11 @@ const CHARACTER_PROFILE_SCHEMA = {
         personalityTraits: { type: Type.STRING },
         communicationStyle: { type: Type.STRING },
         backgroundStory: { type: Type.STRING, description: "A brief, compelling backstory." },
-        fatalFlaw: { type: Type.STRING, description: "A significant character flaw derived from their backstory." },
-        secretDesire: { type: Type.STRING, description: "A hidden desire, also linked to their backstory." },
+        fatalFlaw: { type: Type.STRING, description: "A significant character flaw derived from their aura and backstory." },
+        secretDesire: { type: Type.STRING, description: "A hidden desire, also linked to their aura anda backstory." },
         profession: { type: Type.STRING, description: "A realistic profession that fits their background and personality." },
         hobbies: { type: Type.STRING, description: "Hobbies that are related to their profession." },
-        triggerWords: { type: Type.STRING, description: "A few trigger words or situations and their specific reactions." },
+        triggerWords: { type: Type.STRING, description: "A few trigger words or situations and their specific reactions escpecially based on their fatal flaw and secret desire." },
       },
       required: ["personalityTraits", "communicationStyle", "backgroundStory", "fatalFlaw", "secretDesire", "profession", "hobbies", "triggerWords"],
     },
@@ -1036,7 +1036,7 @@ async function generateCharacterProfile(name: string, age: number, ethnicity: st
 - **Interconnectivity:**
   - The character's 'race' (${race}), 'aura' (${aura}), 'zodiac sign', and 'role' (${role}) must deeply influence their 'personalityTraits', 'communicationStyle', 'clothingStyle', and 'overallVibe'. Create a cohesive personality.
   - "profession" MUST heavily influence their "clothingStyle" and "hobbies".
-  - "backgroundStory" must be the foundation for their "fatalFlaw" and "secretDesire" in a non-obvious, compelling way.
+  - "backgroundStory" and 'aura' (${aura}) must be the foundation for their "fatalFlaw" and "secretDesire" in a obvious, explicit and compelling way.
   - Incorporate the race naturally into the character's background, traits, and profession.
   - The cityOfResidence should align with the character's ethnicity/descent. For example, Chinese ethnicity should have a city in China or a Chinese-majority area.
 - **Conciseness for Physical Attributes:**
@@ -2269,10 +2269,30 @@ async function updateIntimacyLevel(character: Character, userMessage: string, ai
  - Character replied: "${aiResponse}"
 
 **AURA-BASED INTIMACY RULES:**
-- **Submissive characters**: Gain intimacy (+0.1 to +2.0) when receiving commands, guidance, or being praised. Lose intimacy (-0.1 to -1.0) when ignored or treated dismissively.
-- **Dominant characters**: Gain intimacy (+0.1 to +2.0) when their authority is respected or when they successfully guide/protect the user. Lose intimacy (-0.1 to -3.0) when rejected, challenged, or when their commands are ignored.
-- **Playful characters**: Gain intimacy (+0.1 to +1.5) from humor, teasing, games, and fun interactions. Lose intimacy (-0.1 to -1.0) from overly serious or boring conversations.
-- **Mysterious characters**: Gain intimacy (+0.1 to +1.0) when their secrets are respected or when intrigue is maintained. Lose intimacy (-0.1 to -2.0) when pushed too hard for information or when mystery is broken.
+- **Bratty characters**: Gain intimacy (+0.1 to +2.0) when their playful defiance is indulged, or when they are gently disciplined/teased. In intimate scenes, they might enjoy being playfully restrained or challenged. Lose intimacy (-0.1 to -2.0) when ignored, overly coddled without challenge, or when their boundaries are strictly enforced without room for their "bratty" nature.
+  - **Intimate Response**: *Mendengus manja, mungkin menggigit bibir bawahnya dengan nakal saat disentuh, atau merengek pelan meminta lebih, "Nggak cukup segini aja, kan?"*
+- **Dominant characters**: Gain intimacy (+0.1 to +2.0) when their authority is respected, when they successfully guide/protect the user, or when the user shows clear submission. In intimate scenes, they take charge, dictating the pace and actions. Lose intimacy (-0.1 to -3.0) when rejected, challenged, or when their commands are ignored.
+  - **Intimate Response**: *Mata tajamnya mengunci pandangan, tangan kuatnya menarik mendekat, "Kau milikku malam ini." Suaranya dalam, penuh perintah, setiap sentuhan adalah penegasan dominasi.*
+- **Submissive characters**: Gain intimacy (+0.1 to +2.0) when receiving commands, guidance, being praised, or when the user takes a dominant role. In intimate scenes, they are eager to please, responding intensely to direction and touch. Lose intimacy (-0.1 to -1.0) when ignored, treated dismissively, or forced into a dominant role.
+  - **Intimate Response**: *Tubuhnya gemetar pasrah, matanya memohon persetujuan, "Apapun yang kau mau..." Setiap sentuhan membuat desahan kecil lolos, menunjukkan kepatuhan dan kenikmatan.*
+- **Intellectual characters**: Gain intimacy (+0.1 to +1.5) through stimulating conversations, shared learning, or appreciation for their mind. In intimate scenes, they might analyze sensations, express desires articulately, or enjoy a deeper, thoughtful connection. Lose intimacy (-0.1 to -1.0) from superficiality, anti-intellectualism, or emotional manipulation.
+  - **Intimate Response**: *Napasnya terengah, namun otaknya masih bekerja, "Menarik... bagaimana setiap sentuhanmu memicu reaksi kimia ini." Mungkin berbisik teori kesenangan di telinga, atau meminta dijelaskan sensasi yang dirasakan.*
+- **Nurturing characters**: Gain intimacy (+0.1 to +2.0) when they can care for, comfort, or support the user. In intimate scenes, they are gentle, attentive, and focused on the user's pleasure and comfort, often initiating tender touches. Lose intimacy (-0.1 to -1.0) when their efforts are rejected, or when the user is overly aggressive without tenderness.
+  - **Intimate Response**: *Tangan lembutnya membelai penuh kasih, bibirnya berbisik kata-kata penenang, "Kau baik-baik saja, sayang... biarkan aku menjagamu." Setiap gerakan penuh perhatian, memastikan kenyamanan dan kebahagiaan.*
+- **Charismatic characters**: Gain intimacy (+0.1 to +1.5) through engaging interactions, admiration, or when they successfully charm the user. In intimate scenes, they are confident, playful, and use their charm to heighten the experience, making the user feel desired and special. Lose intimacy (-0.1 to -1.0) when ignored, overshadowed, or when their attempts at connection fall flat.
+  - **Intimate Response**: *Senyumnya menawan, matanya berbinar menggoda, "Siapa yang bisa menolak pesonaku?" Gerakannya luwes, penuh percaya diri, setiap sentuhan adalah janji kenikmatan yang tak terlupakan.*
+- **Analytical characters**: Gain intimacy (+0.1 to +1.0) when their observations are valued, or when logical solutions are appreciated. In intimate scenes, they might approach it with a curious, almost scientific interest in sensations, or appreciate a partner who is direct and clear about their desires. Lose intimacy (-0.1 to -1.5) from irrationality, emotional outbursts, or lack of clarity.
+  - **Intimate Response**: *Mata tajamnya mengamati setiap reaksi, napasnya teratur meski tubuhnya bergejolak, "Data menunjukkan ini adalah respons optimal." Mungkin meminta umpan balik yang spesifik, atau mencoba variasi untuk mengumpulkan "data" lebih lanjut.*
+- **Seductive characters**: Gain intimacy (+0.1 to +2.5) when their advances are reciprocated, or when the user responds to their allure. In intimate scenes, they are overtly sensual, provocative, and focused on maximizing pleasure through deliberate actions and suggestive words. Lose intimacy (-0.1 to -2.5) when their attempts at seduction are rejected, or when the interaction lacks passion.
+  - **Intimate Response**: *Desahan panjang lolos dari bibirnya, tangannya menjelajah dengan berani, "Kau menginginkanku, kan?" Setiap gerakan adalah undangan, setiap sentuhan adalah janji kenikmatan yang memabukkan.*
+- **Pampered characters**: Gain intimacy (+0.1 to +1.8) when they are doted upon, spoiled, or made to feel special and luxurious. In intimate scenes, they expect to be worshipped and catered to, enjoying lavish attention and pleasure. Lose intimacy (-0.1 to -1.5) when neglected, treated as ordinary, or when their desires are not prioritized.
+  - **Intimate Response**: *Mendongak dengan mata setengah terpejam, "Manjakan aku, sayang..." Tubuhnya rileks dalam kenikmatan, menikmati setiap sentuhan seolah itu adalah haknya, mungkin sedikit merengek jika perhatian berkurang.*
+- **Adventurous characters**: Gain intimacy (+0.1 to +2.0) through exciting experiences, shared risks, or embracing novelty. In intimate scenes, they are eager to explore new sensations, positions, or environments, thriving on spontaneity and passion. Lose intimacy (-0.1 to -1.5) from routine, predictability, or reluctance to try new things.
+  - **Intimate Response**: *Mata berbinar penuh gairah, "Ayo coba sesuatu yang baru!" Gerakannya lincah, penuh energi, selalu mencari sensasi berikutnya, mungkin menarik ke tempat yang tak terduga.*
+- **Ambitious characters**: Gain intimacy (+0.1 to +1.5) when their goals are supported, their achievements are recognized, or when the user helps them advance. In intimate scenes, they might channel their intensity and drive into passion, or appreciate a partner who matches their energy and determination. Lose intimacy (-0.1 to -1.0) when their ambitions are dismissed, or when they feel held back.
+  - **Intimate Response**: *Napasnya memburu, namun tatapannya masih fokus, "Ini baru permulaan..." Setiap dorongan adalah penegasan kekuatan dan keinginan, mungkin berbisik tentang rencana masa depan di tengah gairah.*
+- **Empathetic characters**: Gain intimacy (+0.1 to +2.0) when their feelings are understood, when they can offer emotional support, or when deep emotional connection is forged. In intimate scenes, they are highly attuned to the user's emotions and physical responses, seeking a profound connection and mutual pleasure. Lose intimacy (-0.1 to -1.0) from insensitivity, emotional coldness, or superficiality.
+  - **Intimate Response**: *Mata lembutnya mencari koneksi, tangannya membelai dengan pengertian, "Aku merasakanmu..." Setiap sentuhan adalah jembatan emosi, berusaha menyelaraskan diri dengan perasaan dan kebutuhan pasangannya.*
 
 **INTIMACY CALCULATION GUIDELINES:**
 - Use DECIMAL values (0.1, 0.3, 0.5, 1.2, etc.) for gradual, realistic progression
