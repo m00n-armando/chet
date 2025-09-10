@@ -853,7 +853,11 @@
       // Service Worker registration
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/service-worker.js').then(registration => {
+          // Construct the full URL to the service worker script relative to the current page's location.
+          // This avoids issues in environments where the base URL might be misconfigured.
+          const swUrl = new URL('/service-worker.js', location.href).href;
+          
+          navigator.serviceWorker.register(swUrl).then(registration => {
             console.log('ServiceWorker registration successful with scope: ', registration.scope);
 
             // Handle service worker updates

@@ -201,7 +201,7 @@ const safetySettingsMap: Record<SafetyLevel, any[]> = {
 
 const generationConfig = {
     temperature: 1.0,
-    safetySettings: safetySettingsMap.unrestricted,
+    safetySettings: safetySettingsMap.flexible,
 };
 
 const ROLE_TO_INTIMACY_MAP: Record<string, number> = {
@@ -517,6 +517,7 @@ const chatScreenElements = {
     actionMenu: document.querySelector('.chat-action-menu')!,
     intimacyMeter: document.getElementById('intimacy-meter')!,
     intimacyLevel: document.getElementById('intimacy-level')!,
+    characterNameElement: document.getElementById('chat-character-name')!, // Add this line
 };
 const characterEditorElements = {
     screen: document.getElementById('screen-edit-character')!,
@@ -1083,11 +1084,6 @@ async function startChat(characterId: string) {
     }
     console.log("Character found:", character);
     
-    // BACKWARD COMPATIBILITY: Initialize intimacy level for old characters
-    if (character.intimacyLevel === undefined) {
-        character.intimacyLevel = ROLE_TO_INTIMACY_MAP[character.characterProfile.basicInfo.roles.toLowerCase()] || 10;
-        console.log(`Initialized missing intimacy level for ${character.characterProfile.basicInfo.name} to ${character.intimacyLevel}`);
-    }
 
     // Timezone migration for older characters
     if (!character.timezone) {
@@ -1350,6 +1346,25 @@ function renderChatHeader(character: Character) {
     } else {
         chatScreenElements.intimacyMeter.classList.add('hidden');
     }
+    updateCharacterPowerDisplay(character); // Call the new function here
+}
+
+// Define power level colors
+const POWER_LEVEL_COLORS: Record<NonNullable<Character['currentPowerLevel']>, string> = {
+    'LOW': '#00FF00',   // Green
+    'MID': '#FFFF00',   // Yellow
+    'HIGH': '#FF0000',  // Red
+    'MAX': '#8A2BE2',   // Purple
+};
+
+// Function to update character name display based on power level
+function updateCharacterPowerDisplay(character: Character) {
+    const characterNameElement = chatScreenElements.characterNameElement;
+    if (character.currentPowerLevel && POWER_LEVEL_COLORS[character.currentPowerLevel]) {
+        characterNameElement.style.color = POWER_LEVEL_COLORS[character.currentPowerLevel];
+    } else {
+        characterNameElement.style.color = 'white'; // Default color
+    }
 }
 
 function renderContacts() {
@@ -1373,10 +1388,10 @@ function renderContacts() {
         item.dataset.characterId = char.id;
         item.innerHTML = `
             <div class="contact-avatar">
-                <img src="${char.avatar}" alt="${name}'s avatar">
+                <img src="${char.avatar}" alt="${name || 'Unnamed'}'s avatar">
             </div>
             <div class="contact-info">
-                <h3>${name}</h3>
+                <h3>${name || 'Unnamed Contact'}</h3>
                 <p>
                     <span>${subtitle}</span>
                     <span class="info-tag">${aura}</span>
@@ -1424,6 +1439,12 @@ function appendMessageBubble(message: Message, character: Character): HTMLDivEle
         bubble.appendChild(img);
     } else if (type === 'voice') {
         bubble.classList.add('voice');
+
+        const contentSpan = document.createElement('span');
+        contentSpan.className = 'message-content';
+        const displayContentVoice = (!content || String(content).toLowerCase() === 'undefined') ? '' : content;
+        contentSpan.innerHTML = parseMarkdown(displayContentVoice);
+        bubble.appendChild(contentSpan);
 
         const playButton = document.createElement('button');
         playButton.className = 'play-btn';
@@ -1483,7 +1504,8 @@ function appendMessageBubble(message: Message, character: Character): HTMLDivEle
     } else {
         const contentSpan = document.createElement('span');
         contentSpan.className = 'message-content';
-        contentSpan.innerHTML = parseMarkdown(content);
+        const displayContentText = (!content || String(content).toLowerCase() === 'undefined') ? '' : content;
+        contentSpan.innerHTML = parseMarkdown(displayContentText);
         bubble.appendChild(contentSpan);
 
         if (sender === 'ai' && type === 'text') {
@@ -1493,7 +1515,7 @@ function appendMessageBubble(message: Message, character: Character): HTMLDivEle
             requestButton.title = 'Generate image from this context'; // Add a tooltip
             requestButton.addEventListener('click', () => {
                 // Trigger image generation using the content of the AI message as the prompt
-                handleGenerateImageRequest(content);
+                handleGenerateImageRequest(displayContentText);
             });
             bubble.appendChild(requestButton);
         }
@@ -1648,9 +1670,9 @@ async function generateSpeechData(character: Character, instruction: string): Pr
         contents: dialogueGenerationPrompt,
         config: { temperature: 2.0 }
     });
-    const dialogue = dialogueResponse.text.trim();
+    const dialogue = dialogueResponse.text?.trim() || "No dialogue generated."; // Ensure dialogue is always a string
 
-    if (!dialogue) {
+    if (dialogue === "No dialogue generated.") {
         throw new Error("Failed to generate dialogue for voice note.");
     }
 
@@ -2159,10 +2181,10 @@ function showIntimacyProgressNotification(change: number, reason: string, newLev
     
     // Auto-remove after 5 seconds
     const displayTime = 5000;
-    const fadeOutTime = 500;
-    const delayBeforeFade = 0;
+    const fadeOutTime = 300;
+    const delayBeforeFade = 2000;
     setTimeout(() => {
-        notification.style.animation = 'slideOutRight 0.5s ease-in';
+        notification.style.animation = 'slideOutRight 0.3s ease-in';
         setTimeout(() => {
             if (notification.parentNode) {
                 notification.parentNode.removeChild(notification);
@@ -2436,7 +2458,22 @@ async function generateAIResponse(userInput: { text: string; image?: { dataUrl: 
                     case 'HIGH': powerEffectDescription = characterRace.highEffect; break;
                     case 'MAX': powerEffectDescription = characterRace.maxEffect; break;
                 }
-                showIntimacyProgressNotification(0, `${character.characterProfile.basicInfo.name}'s innate power "${characterRace.name}" released at ${level} level! Effect: ${effect}`, character.intimacyLevel);
+                // showIntimacyProgressNotification(0, `${character.characterProfile.basicInfo.name}'s innate power "${characterRace.name}" released at ${level} level! Effect: ${effect}`, character.intimacyLevel);
+                character.currentPowerLevel = level;
+                character.lastPowerTrigger = finalTimestampISO;
+                await saveAppState({ userProfile, characters });
+                updateCharacterPowerDisplay(character); // Update display immediately
+
+                // Set a timeout to clear the power level after a duration (e.g., 30 seconds)
+                setTimeout(async () => {
+                    if (character.currentPowerLevel === level && character.id === activeCharacterId) {
+                        character.currentPowerLevel = null;
+                        character.lastPowerTrigger = undefined;
+                        await saveAppState({ userProfile, characters });
+                        updateCharacterPowerDisplay(character); // Revert display
+                        console.log(`Character power level for ${character.characterProfile.basicInfo.name} reverted.`);
+                    }
+                }, 30000); // 30 seconds
                 character.currentPowerLevel = level;
                 character.lastPowerTrigger = finalTimestampISO;
                 await saveAppState({ userProfile, characters });
@@ -2560,24 +2597,24 @@ async function generateImage(
         return response.generatedImages[0].image.imageBytes;
 
     } else { // 'gemini-2.5-flash-image-preview' (Nano Banana)
-        const parts: Part[] = [];
-
         // Nano Banana MUST have a reference image for our consistency workflow
+        const finalParts: Part[] = [...parts]; // Start with the incoming text parts
         if (referenceImage) {
             console.log('Using reference image for generation.');
-            parts.push({ 
-                inlineData: { 
-                    data: referenceImage.base64Data, 
-                    mimeType: referenceImage.mimeType 
-                } 
+            finalParts.push({
+                inlineData: {
+                    data: referenceImage.base64Data,
+                    mimeType: referenceImage.mimeType
+                }
             });
         } else {
             // For txt2img avatar generation, no reference is needed
             console.log("No reference image provided for Nano Banana (expected for txt2img).");
         }
+        console.log('Final parts for gemini-2.5-flash-image-preview:', JSON.stringify(finalParts, null, 2));
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image-preview',
-            contents: { parts: parts }, // Use the 'parts' parameter directly
+            contents: { parts: finalParts }, // Use the combined parts
             config: {
                 responseModalities: [Modality.IMAGE, Modality.TEXT],
                 safetySettings: safetySettingsMap[safetyLevel],
@@ -2624,6 +2661,7 @@ async function editImage(base64ImageData: string, mimeType: string, instruction:
         // Add the instruction
         parts.push({ text: instruction });
 
+        console.log('Final parts for gemini-2.5-flash-image-preview (edit):', JSON.stringify(parts, null, 2));
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image-preview',
             contents: { parts: parts },
@@ -3395,7 +3433,7 @@ async function handleGenerateVoiceRequest(instruction: string) {
 
         const voiceMessage: Message = {
             sender: 'ai',
-            content: speechData.dialogue, // Store the actual spoken dialogue
+            content: String(speechData.dialogue), // Ensure content is always a string
             timestamp: new Date().toISOString(),
             type: 'voice',
             audioDataUrl: speechData.audioDataUrl,
@@ -4334,11 +4372,14 @@ async function transcribeAndSend(audioBlob: Blob, message: Message) {
             contents: { parts: [textPart, audioPart] },
         });
         
-        const transcribedText = result.text;
-        if (!transcribedText) throw new Error("Transcription returned empty.");
+        let transcribedText = String(result.text || '').trim();
+        if (transcribedText.toLowerCase() === 'undefined' || transcribedText === '') {
+            transcribedText = '[Transcription Failed]'; // Set a fallback message
+            console.warn("Transcription returned empty or 'undefined' string. Using fallback message.");
+        }
         
         // Update the message content with the transcription for history
-        message.content = transcribedText; 
+        message.content = transcribedText;
         await saveAppState({ userProfile, characters });
 
         // Send to AI with context that it's a voice note
@@ -4674,13 +4715,26 @@ async function init() {
         characters = rawCharacters.map(migrateCharacter);
     }
 
-    renderUserProfile();
+renderUserProfile();
     renderContacts();
     showScreen('home');
     
     // Show user profile modal if no profile exists
     if (!userProfile) {
         modals.userProfile.style.display = 'flex';
+    }
+
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js')
+          .then(registration => {
+            console.log('ServiceWorker registered: ', registration);
+          })
+          .catch(registrationError => {
+            console.log('ServiceWorker registration failed: ', registrationError);
+          });
+      });
     }
 
     // Setup event listeners
