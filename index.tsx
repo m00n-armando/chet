@@ -616,7 +616,7 @@ const apiKeyDisplay = document.getElementById('api-key-display')!;
 const videoToggle = document.getElementById('video-toggle') as HTMLInputElement | null;
 const intimacyToggle = document.getElementById('intimacy-toggle') as HTMLInputElement | null;
     const intimacyProgressToggle = document.getElementById('intimacy-progress-toggle') as HTMLInputElement | null;
-    const chatTemperatureInput = document.getElementById('chat-temperature-input') as HTMLInputElement;
+    const chatTemperatureInput = document.getElementById('chat-temperature-input') as HTMLInputElement | null;
     const chatSafetyLevelRadios = document.querySelectorAll('input[name="chat-safety-level"]') as NodeListOf<HTMLInputElement>;
 
 
@@ -4708,10 +4708,12 @@ async function handleDeleteMedia(mediaId: string) {
 // --- SETTINGS ---
 function updateSettingsUI() {
     const key = localStorage.getItem('chet_api_key');
-    if (key) {
-        apiKeyDisplay.textContent = `${key.substring(0, 4)}...${key.substring(key.length - 4)}`;
-    } else {
-        apiKeyDisplay.textContent = 'No key set.';
+    if (apiKeyDisplay) {
+        if (key) {
+            apiKeyDisplay.textContent = `${key.substring(0, 4)}...${key.substring(key.length - 4)}`;
+        } else {
+            apiKeyDisplay.textContent = 'No key set.';
+        }
     }
     
     const videoSetting = localStorage.getItem('chet_video_enabled');
@@ -4729,10 +4731,12 @@ function updateSettingsUI() {
             intimacyProgressToggle.checked = userProfile.showIntimacyProgress !== false;
         }
         // Update temperature and safety level display
-        (document.getElementById('chat-temperature-input') as HTMLInputElement).value = (userProfile.chatTemperature ?? 1.0).toString();
+        if (chatTemperatureInput) {
+            chatTemperatureInput.value = (userProfile.chatTemperature ?? 1.0).toString();
+        }
         const safetyLevelRadios = document.querySelectorAll('input[name="chat-safety-level"]');
         safetyLevelRadios.forEach(radio => {
-            if ((radio as HTMLInputElement).value === (userProfile.chatSafetyLevel ?? 'flexible')) {
+            if (radio && (radio as HTMLInputElement).value === (userProfile.chatSafetyLevel ?? 'flexible')) {
                 (radio as HTMLInputElement).checked = true;
             }
         });
@@ -4744,8 +4748,13 @@ function updateSettingsUI() {
             intimacyProgressToggle.checked = true; // Default
         }
         // Set default values for new settings
-        (document.getElementById('chat-temperature-input') as HTMLInputElement).value = '1.0';
-        (document.getElementById('chat-safety-level-flexible') as HTMLInputElement).checked = true;
+        if (chatTemperatureInput) {
+            chatTemperatureInput.value = '1.0';
+        }
+        const defaultSafetyRadio = document.getElementById('chat-safety-level-flexible') as HTMLInputElement | null;
+        if (defaultSafetyRadio) {
+            defaultSafetyRadio.checked = true;
+        }
     }
 }
 
@@ -4857,16 +4866,21 @@ renderUserProfile();
     userProfileDisplay.addEventListener('click', () => {
         modals.userProfile.style.display = 'flex';
         if (userProfile) {
-            (document.getElementById('user-name') as HTMLInputElement).value = userProfile.name;
+            const userNameInput = document.getElementById('user-name') as HTMLInputElement | null;
+            if (userNameInput) {
+                userNameInput.value = userProfile.name;
+            }
         }
     });
     userProfileForm.addEventListener('submit', handleUserProfileSubmit);
     
     apiKeyForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        const key = apiKeyInput.value.trim();
-        if (key) {
-            initializeGenAI(key);
+        if (apiKeyInput) {
+            const key = apiKeyInput.value.trim();
+            if (key) {
+                initializeGenAI(key);
+            }
         }
     });
 
