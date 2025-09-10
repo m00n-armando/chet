@@ -196,8 +196,8 @@ const safetySettingsMap: Record<SafetyLevel, any[]> = {
 };
 
 const generationConfig = {
-    temperature: 2.0,
-    safetySettings: safetySettingsMap.unrestricted,
+    temperature: 1.0,
+    safetySettings: safetySettingsMap.flexible,
 };
 
 const ROLE_TO_INTIMACY_MAP: Record<string, number> = {
@@ -4728,7 +4728,7 @@ function updateSettingsUI() {
         (document.getElementById('chat-temperature-input') as HTMLInputElement).value = (userProfile.chatTemperature ?? 1.0).toString();
         const safetyLevelRadios = document.querySelectorAll('input[name="chat-safety-level"]');
         safetyLevelRadios.forEach(radio => {
-            if ((radio as HTMLInputElement).value === (userProfile.chatSafetyLevel ?? 'unrestricted')) {
+            if ((radio as HTMLInputElement).value === (userProfile.chatSafetyLevel ?? 'flexible')) {
                 (radio as HTMLInputElement).checked = true;
             }
         });
@@ -4739,7 +4739,7 @@ function updateSettingsUI() {
         }
         // Set default values for new settings
         (document.getElementById('chat-temperature-input') as HTMLInputElement).value = '1.0';
-        (document.getElementById('chat-safety-level-unrestricted') as HTMLInputElement).checked = true;
+        (document.getElementById('chat-safety-level-flexible') as HTMLInputElement).checked = true;
     }
 }
 
