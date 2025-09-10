@@ -10,12 +10,17 @@
   },
   "dependencies": {
     "@google/genai": "^0.15.0",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
     "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.2",
     "terser": "^5.36.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",

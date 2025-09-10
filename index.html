@@ -14,7 +14,6 @@
     <!-- PWA Tags -->
     <meta name="theme-color" content="#1c1c1e"/>
     <link rel="manifest" href="/manifest.json">
-    <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="CHET">
@@ -855,13 +854,13 @@
         window.visualViewport.addEventListener('resize', setDynamicViewportHeight);
       }
 
-      // Service Worker registration
-      if ('serviceWorker' in navigator) {
+      // Service Worker registration (only in production)
+      if ('serviceWorker' in navigator && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
         window.addEventListener('load', () => {
           // Construct the full URL to the service worker script relative to the current page's location.
           // This avoids issues in environments where the base URL might be misconfigured.
           const swUrl = new URL('/sw.js', location.href).href;
-          
+
           navigator.serviceWorker.register(swUrl).then(registration => {
             console.log('ServiceWorker registration successful with scope: ', registration.scope);
 

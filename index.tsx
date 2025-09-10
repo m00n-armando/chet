@@ -37,12 +37,18 @@
 import { GoogleGenAI, Type, Chat, HarmBlockThreshold, HarmCategory, GenerateContentResponse, Modality, Part } from "@google/genai";
 import { saveAppState, loadAppState, blobToBase64, base64ToBlob } from './storageServices';
 import JSZip from 'jszip';
+import React, { useState } from 'react'; // Import useState
 import { inject } from '@vercel/analytics';
 import { injectSpeedInsights } from '@vercel/speed-insights';
+import SplashScreen from './SplashScreen'; // Import the SplashScreen component
+import packageJson from './package.json'; // Import package.json for version
+
+const APP_VERSION = packageJson.version;
  
  // --- TYPES AND INTERFACES ---
 interface UserProfile {
   name: string;
+  showSplash?: boolean; // Make showSplash optional and add it here
   /**
    * Gender of the user. 
    * - Transgender female: Male yang berubah dan berpenampilan seperti female, tapi masih punya kelamin male.
@@ -4734,6 +4740,33 @@ function matchChatAndMediaHeights() {
 
 // --- INITIALIZATION ---
 async function init() {
+    let showSplash = true;
+
+    const handleAnimationEnd = () => {
+        showSplash = false;
+        // Continue with the rest of initialization after splash screen
+        continueInit();
+    };
+
+    if (showSplash) {
+        // Show splash screen
+        const splashContainer = document.getElementById('splash-container');
+        if (splashContainer) {
+            splashContainer.innerHTML = '<div id="splash-screen"></div>';
+            // Note: Since SplashScreen is a React component but we're not using React root,
+            // we'll handle this differently or remove the splash screen for now
+            handleAnimationEnd(); // Skip splash for now to avoid React issues
+        } else {
+            handleAnimationEnd();
+        }
+        return;
+    }
+
+    continueInit();
+}
+
+async function continueInit() {
+
     initializeGenAI();
 
     const loadedState = await loadAppState();
