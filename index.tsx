@@ -4730,6 +4730,7 @@ renderUserProfile();
     }
 
     // Register Service Worker
+    /*
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./service-worker.js')
@@ -4741,6 +4742,7 @@ renderUserProfile();
           });
       });
     }
+    */  
 
     // Setup event listeners
     document.querySelectorAll('.back-btn:not(#screen-edit-character .back-btn)').forEach(btn => {
