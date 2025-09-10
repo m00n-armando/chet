@@ -613,8 +613,8 @@ const downloadImageBtn = document.getElementById('download-image-btn')! as HTMLB
 const apiKeyForm = document.getElementById('api-key-form')! as HTMLFormElement;
 const apiKeyInput = document.getElementById('api-key-input')! as HTMLInputElement;
 const apiKeyDisplay = document.getElementById('api-key-display')!;
-const videoToggle = document.getElementById('video-toggle')! as HTMLInputElement;
-const intimacyToggle = document.getElementById('intimacy-toggle')! as HTMLInputElement;
+const videoToggle = document.getElementById('video-toggle') as HTMLInputElement | null;
+const intimacyToggle = document.getElementById('intimacy-toggle') as HTMLInputElement | null;
     const intimacyProgressToggle = document.getElementById('intimacy-progress-toggle') as HTMLInputElement | null;
     const chatTemperatureInput = document.getElementById('chat-temperature-input') as HTMLInputElement;
     const chatSafetyLevelRadios = document.querySelectorAll('input[name="chat-safety-level"]') as NodeListOf<HTMLInputElement>;
@@ -4715,12 +4715,16 @@ function updateSettingsUI() {
     }
     
     const videoSetting = localStorage.getItem('chet_video_enabled');
-    isVideoGenerationEnabled = videoSetting === 'true';
-    videoToggle.checked = isVideoGenerationEnabled;
+    if (videoToggle) {
+        isVideoGenerationEnabled = videoSetting === 'true';
+        videoToggle.checked = isVideoGenerationEnabled;
+    }
 
     if (userProfile) {
         // default to true if undefined for robustness
-        intimacyToggle.checked = userProfile.showIntimacyMeter !== false;
+        if (intimacyToggle) {
+            intimacyToggle.checked = userProfile.showIntimacyMeter !== false;
+        }
         if (intimacyProgressToggle) {
             intimacyProgressToggle.checked = userProfile.showIntimacyProgress !== false;
         }
@@ -4733,7 +4737,9 @@ function updateSettingsUI() {
             }
         });
     } else {
-        intimacyToggle.checked = true; // Default
+        if (intimacyToggle) {
+            intimacyToggle.checked = true; // Default
+        }
         if (intimacyProgressToggle) {
             intimacyProgressToggle.checked = true; // Default
         }
