@@ -4845,7 +4845,6 @@ async function continueInit() {
     }
 
     // Register Service Worker
-    /*
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./service-worker.js')
@@ -4857,7 +4856,6 @@ async function continueInit() {
           });
       });
     }
-    */  
 
     // Setup event listeners
     document.querySelectorAll('.back-btn:not(#screen-edit-character .back-btn)').forEach(btn => {
