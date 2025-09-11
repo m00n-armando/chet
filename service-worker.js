@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-const CACHE_NAME = 'chet-cache-v2.1.6';
+const CACHE_NAME = 'chet-cache-v2.1.7';
 const URLS_TO_CACHE = [
   '/',
   '/index.html',

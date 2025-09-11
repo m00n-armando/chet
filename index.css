@@ -564,7 +564,7 @@ select option {
     overflow: hidden; /* Prevent the whole screen from scrolling */
     height: 100%;
     position: relative;
-    background-size: cover;
+    background-size: 200%;
     background-position: center top 75px;
     background-repeat: no-repeat;
     justify-content: flex-end;
@@ -575,9 +575,6 @@ select option {
     min-height: 0; /* Add this to allow shrinking */
     overflow-x: hidden;
     padding: 1rem;
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -1906,12 +1903,12 @@ input:checked + .slider:before {
 }
 
 .visual-request-button {
-    background-color: #1a237e;
+    background-color: #a4bcca;
     border: none;
     color: white;
     width: 16px;
     height: 16px;
-    border-radius: 75%;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1919,14 +1916,14 @@ input:checked + .slider:before {
     padding: 0;
     font-size: 0;
     position: absolute;
-    bottom: 2px;
-    right: 2px;
+    bottom: 5px;
+    right: 5px;
 }
 
 .visual-request-button svg {
-    width: 12px;
-    height: 12px;
-    fill: rgb(255, 196, 0);
+    width: 20px;
+    height: 20px;
+    fill: rgb(27, 27, 27);
 }
 
 .message-bubble.ai  {

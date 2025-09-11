@@ -6,7 +6,6 @@
 
 // ---CHET v.2.1.7---
 // Changelog v.2.1.7:
-// - Implemented chat temperature and safety level settings for user customization.
 // - Updated `UserProfile` interface to store `chatTemperature` and `chatSafetyLevel`.
 // - Modified `updateSettingsUI` to reflect saved chat temperature and safety level.
 // - Added event listeners for chat temperature and safety level inputs to update user preferences.
@@ -45,8 +44,6 @@ interface UserProfile {
   gender?: string;
   showIntimacyMeter?: boolean;
   showIntimacyProgress?: boolean;
-  chatTemperature?: number; // New: User-defined chat temperature
-  chatSafetyLevel?: SafetyLevel; // New: User-defined chat safety level
 }
 
 // New detailed character profile structure
@@ -196,8 +193,8 @@ const safetySettingsMap: Record<SafetyLevel, any[]> = {
 };
 
 const generationConfig = {
-    temperature: 1.0,
-    safetySettings: safetySettingsMap.flexible,
+    temperature: 2.0,
+    safetySettings: safetySettingsMap.unrestricted,
 };
 
 const ROLE_TO_INTIMACY_MAP: Record<string, number> = {
@@ -206,12 +203,11 @@ const ROLE_TO_INTIMACY_MAP: Record<string, number> = {
     'coworker': 10,
     'neighbor': 15,
     'childhood friend': 30,
-    'step sibling': 20,
+    'ex lover': 20,
     'step sister': 20,
     'step brother': 20,
     'fwb/sex partner': 40,
     'lover': 60,
-    "step-sibling": 20,
     "girlfriend's step mother": 10,
     "boyfriend's step father": 10,
     "best friend": 35,
@@ -616,15 +612,14 @@ const apiKeyDisplay = document.getElementById('api-key-display')!;
 const videoToggle = document.getElementById('video-toggle') as HTMLInputElement | null;
 const intimacyToggle = document.getElementById('intimacy-toggle') as HTMLInputElement | null;
     const intimacyProgressToggle = document.getElementById('intimacy-progress-toggle') as HTMLInputElement | null;
-    const chatTemperatureInput = document.getElementById('chat-temperature-input') as HTMLInputElement | null;
-    const chatSafetyLevelRadios = document.querySelectorAll('input[name="chat-safety-level"]') as NodeListOf<HTMLInputElement>;
 
 
 // --- API INITIALIZATION ---
 // Modified to return a Promise<boolean>
 function initializeGenAI(apiKey?: string): Promise<boolean> {
     return new Promise(resolve => {
-        const key = apiKey || ((import.meta as any).env?.VITE_GEMINI_API_KEY as string) || localStorage.getItem('chet_api_key');
+        // Prioritize the provided apiKey, then localStorage. Remove environment variable check.
+        const key = apiKey || localStorage.getItem('chet_api_key');
 
         if (key) {
             try {
@@ -634,6 +629,7 @@ function initializeGenAI(apiKey?: string): Promise<boolean> {
                 localStorage.setItem('chet_api_key', key);
                 modals.apiKey.style.display = 'none';
                 updateSettingsUI();
+                logAIStatus(); // Log status after successful initialization
                 resolve(true);
             } catch (error) {
                 console.error("Error initializing GoogleGenAI:", error);
@@ -642,6 +638,7 @@ function initializeGenAI(apiKey?: string): Promise<boolean> {
                 modals.apiKey.style.display = 'flex';
                 ai = null;
                 updateSettingsUI();
+                logAIStatus(); // Log status after failed initialization
                 resolve(false);
             }
         } else {
@@ -649,6 +646,7 @@ function initializeGenAI(apiKey?: string): Promise<boolean> {
             modals.apiKey.style.display = 'flex';
             ai = null;
             updateSettingsUI();
+            logAIStatus(); // Log status when key is not found
             resolve(false);
         }
     });
@@ -1262,8 +1260,8 @@ async function startChat(characterId: string) {
               })),
           config: {
             systemInstruction,
-            temperature: userProfile?.chatTemperature ?? generationConfig.temperature,
-            safetySettings: userProfile?.chatSafetyLevel ? safetySettingsMap[userProfile.chatSafetyLevel] : generationConfig.safetySettings,
+            temperature: generationConfig.temperature,
+            safetySettings: generationConfig.safetySettings,
           }
         });
         
@@ -1551,7 +1549,7 @@ function appendMessageBubble(message: Message, character: Character): HTMLDivEle
         if (sender === 'ai' && type === 'text') {
             const requestButton = document.createElement('button');
             requestButton.className = 'visual-request-button';
-            requestButton.innerHTML = ICONS.play;
+            requestButton.innerHTML = ICONS.camera;
             requestButton.title = 'Generate image from this context'; // Add a tooltip
             requestButton.addEventListener('click', () => {
                 // Trigger image generation using the content of the AI message as the prompt
@@ -1579,7 +1577,11 @@ const ICONS = {
     pause: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"></path></svg>`,
     spinner: `<div class="btn-spinner"></div>`,
     send: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>`,
-    mic: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z"></path></svg>`
+    mic: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.49 6-3.31 6-6.72h-1.7z"></path></svg>`,
+    camera: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-camera" viewBox="0 0 16 16">
+  <path d="M15 12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h1.172a3 3 0 0 0 2.12-.879l.83-.828A1 1 0 0 1 6.827 3h2.344a1 1 0 0 1 .707.293l.828.828A3 3 0 0 0 12.828 5H14a1 1 0 0 1 1 1zM2 4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1.172a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 9.172 2H6.828a2 2 0 0 0-1.414.586l-.828.828A2 2 0 0 1 3.172 4z"/>
+  <path d="M8 11a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5m0 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M3 6.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0"/>
+</svg>`
 };
 
 function stopAllOtherAudio(exceptButton?: HTMLButtonElement) {
@@ -2130,7 +2132,10 @@ async function handleSaveCharacter() {
         innatePowerReleased: false, // Initialize the new flag
     };
     
-    characters.push(newCharacter);
+    // Apply migration to the new character immediately after creation
+    const migratedNewCharacter = migrateCharacter(newCharacter);
+
+    characters.push(migratedNewCharacter); // Push the migrated character
     await saveAppState({ userProfile, characters });
     renderContacts();
     showScreen('home');
@@ -2453,8 +2458,8 @@ async function generateAIResponse(userInput: { text: string; image?: { dataUrl: 
         const innatePowerMatch = fullResponseText.match(/\[INNATE_POWER_RELEASE:\s*(LOW|MID|HIGH|MAX):\s*(.*?)\]/i);
         let cleanedResponse = fullResponseText.replace(/\[GENERATE_(IMAGE|VIDEO|VOICE):.*?\]/gs, '').replace(/\[INNATE_POWER_RELEASE:.*?\]/gs, '').trim();
 
-        // If AI response is empty after cleaning, provide a default message
-        if (!cleanedResponse) {
+        // If AI response is empty or "undefined" after cleaning, provide a default message
+        if (!cleanedResponse || cleanedResponse.toLowerCase() === 'undefined') {
             cleanedResponse = "I'm sorry, I couldn't generate a response at this moment. Please try again.";
         }
 
@@ -4733,16 +4738,6 @@ function updateSettingsUI() {
         if (intimacyProgressToggle) {
             intimacyProgressToggle.checked = userProfile.showIntimacyProgress !== false;
         }
-        // Update temperature and safety level display
-        if (chatTemperatureInput) {
-            chatTemperatureInput.value = (userProfile.chatTemperature ?? 1.0).toString();
-        }
-        const safetyLevelRadios = document.querySelectorAll('input[name="chat-safety-level"]');
-        safetyLevelRadios.forEach(radio => {
-            if (radio && (radio as HTMLInputElement).value === (userProfile.chatSafetyLevel ?? 'flexible')) {
-                (radio as HTMLInputElement).checked = true;
-            }
-        });
     } else {
         if (intimacyToggle) {
             intimacyToggle.checked = true; // Default
@@ -4751,13 +4746,6 @@ function updateSettingsUI() {
             intimacyProgressToggle.checked = true; // Default
         }
         // Set default values for new settings
-        if (chatTemperatureInput) {
-            chatTemperatureInput.value = '1.0';
-        }
-        const defaultSafetyRadio = document.getElementById('chat-safety-level-flexible') as HTMLInputElement | null;
-        if (defaultSafetyRadio) {
-            defaultSafetyRadio.checked = true;
-        }
     }
 }
 
@@ -4798,24 +4786,34 @@ async function continueInit() {
 
     // If AI is not initialized, we need to wait for the user to provide a valid key
     if (!aiInitialized) {
-        await new Promise<void>(resolve => {
-            const handleApiKeySubmit = async (e: Event) => {
-                e.preventDefault();
-                const key = apiKeyInput.value.trim();
-                if (key) {
-                    const success = await initializeGenAI(key);
-                    if (success) {
-                        apiKeyForm.removeEventListener('submit', handleApiKeySubmit);
-                        resolve(); // Resolve the promise, allowing continueInit to proceed
-                    }
-                    // If not successful, the modal remains open, and the user can try again.
+        // Define handleApiKeySubmit outside to ensure it's the same function reference for removeEventListener
+        const handleApiKeySubmit = async (e: Event) => {
+            e.preventDefault();
+            const key = apiKeyInput.value.trim();
+            if (key) {
+                const success = await initializeGenAI(key);
+                if (success) {
+                    // Only remove the listener and resolve if successful
+                    apiKeyForm.removeEventListener('submit', handleApiKeySubmit);
+                    resolveApiKeyPromise(); // Call the resolver function
                 }
-            };
-            // Attach the temporary event listener for API key submission
-            apiKeyForm.addEventListener('submit', handleApiKeySubmit);
-            modals.apiKey.style.display = 'flex'; // Ensure the modal is visible
+                // If not successful, initializeGenAI will display the modal again, and the listener remains.
+            }
+        };
+
+        // Create a promise that can be resolved from handleApiKeySubmit
+        let resolveApiKeyPromise: () => void;
+        const apiKeyPromise = new Promise<void>(resolve => {
+            resolveApiKeyPromise = resolve;
         });
+
+        // Attach the event listener only once
+        apiKeyForm.addEventListener('submit', handleApiKeySubmit);
+        modals.apiKey.style.display = 'flex'; // Ensure the modal is visible
+
+        await apiKeyPromise; // Wait for the promise to resolve
     }
+    logAIStatus(); // Log AI status after API key initialization (or waiting for user input)
 
     const loadedState = await loadAppState();
     if (loadedState) {
@@ -4913,12 +4911,13 @@ async function continueInit() {
     });
 
 
-    document.getElementById('clear-api-key-btn')!.addEventListener('click', () => {
+    document.getElementById('clear-api-key-btn')!.addEventListener('click', async () => {
         if (confirm("Are you sure you want to clear your API Key? You will be logged out.")) {
             localStorage.removeItem('chet_api_key');
-            ai = null;
+            ai = null; // Explicitly clear the AI object
             modals.settings.style.display = 'none';
-            modals.apiKey.style.display = 'flex';
+            // Force re-initialization, which will show the API key modal
+            await initializeGenAI();
             updateSettingsUI();
         }
     });
@@ -4947,27 +4946,6 @@ async function continueInit() {
         }
     });
 
-    // New: Chat Temperature Setting
-    const chatTemperatureInput = document.getElementById('chat-temperature-input') as HTMLInputElement;
-    chatTemperatureInput.addEventListener('input', async () => {
-        if (userProfile) {
-            const temp = parseFloat(chatTemperatureInput.value);
-            if (!isNaN(temp) && temp >= 0 && temp <= 2) {
-                userProfile.chatTemperature = temp;
-                await saveAppState({ userProfile, characters });
-            }
-        }
-    });
-
-    // New: Chat Safety Level Setting
-    document.querySelectorAll('input[name="chat-safety-level"]').forEach(radio => {
-        radio.addEventListener('change', async (e) => {
-            if (userProfile) {
-                userProfile.chatSafetyLevel = (e.target as HTMLInputElement).value as SafetyLevel;
-                await saveAppState({ userProfile, characters });
-            }
-        });
-    });
 
     importBtn.addEventListener('click', () => importFileInput.click());
     importFileInput.addEventListener('change', async (e) => {
