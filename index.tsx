@@ -3084,7 +3084,7 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     const consistencyInstruction = `The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit should be ${outfitDescription}, maintained from the reference image unless the new context requires a change. Pose, expression, hairstyle, makeup, and immediate body condition (e.g., wet, sweaty, sleepy) should be dynamic and match the scene's context.`;
 
     const promptText = (
-        `An ultra-realistic, high-detail, photographic quality image of a ${age}-year-old ${raceOrDescent} ${genderNoun}${raceVisualDescription}. ` +
+        `An ultra-realistic, high-detail, photographic quality image of ${basicInfo.name}, a ${age}-year-old ${raceOrDescent} ${genderNoun}${raceVisualDescription}. ` +
         `Her hair is ${sessionHairstyle}. ` +
         `She is wearing: ${outfitDescription}. ` +
         `${bedtimeLook} ` +
