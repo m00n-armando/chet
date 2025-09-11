@@ -2043,7 +2043,7 @@ async function constructAvatarPrompt(characterProfile: CharacterProfile): Promis
 ${genderPronoun === 'him' ? 'His' : 'Her'} skin is ${physicalStyle.skinTone} with realistic texture. ${genderPronoun === 'him' ? 'His' : 'Her'} ${hair} is styled professionally. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are ${eyes}. 
 ${genderPronoun === 'him' ? 'His' : 'Her'} makeup is ${makeup} style. ${genderPronoun === 'him' ? 'He' : 'She'} wears ${clothing}, ensuring a clear view of ${genderPronoun === 'him' ? 'his' : 'her'} neck, shoulders and cleavage. ${genderPronoun === 'him' ? 'He' : 'She'} wears fashionable jewelry including prominent necklace, accentuating ${genderPronoun === 'him' ? 'his' : 'her'} chic style.
 Half-body composition from hips up, emphasizing ${genderPronoun === 'him' ? 'his' : 'her'} ${basicInfo.aura} expression and pose, facing forward. The overall tone is cinematic and high-fashion. Studio lighting with softboxes creates perfect illumination.
-9:16 aspect ratio. The image exhibits exceptional professional photography quality - tack-sharp focus on the eyes, creamy bokeh background, and perfect exposure balance. No digital art, no 3D rendering, pure photographic excellence.
+1:1 aspect ratio. The image exhibits exceptional professional photography quality - tack-sharp focus on the eyes, creamy bokeh background, and perfect exposure balance. No digital art, no 3D rendering, pure photographic excellence.
 `.trim().replace(/\n/g, ' ').replace(/\s\s+/g, ' ');
 
     return prompt;
