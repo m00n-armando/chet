@@ -3094,7 +3094,7 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         `${consistencyInstruction} ` +
         `The visual setting must match this micro-location. ` +
         `9:16 portrait orientation. ` +
-        `-- no phone visible in the frame, no 3D, no CGI, no digital image, photographic realism.`
+        `-- no 3D, no CGI, no digital image, photographic realism.`
     ).trim().replace(/\s\s+/g, ' ');
 
     const parts: Part[] = [{ text: promptText }];
