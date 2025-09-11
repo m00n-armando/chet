@@ -2860,10 +2860,20 @@ Your description MUST NOT repeat those details and MUST be consistent with the n
             contents: promptForDirector,
             config: { temperature: 2.0 },
         });
-        return response.text.trim();
+
+        // JURUS PERTAHANAN BARU DI SINI!
+        const responseText = response?.text; // Gunakan optional chaining
+        if (typeof responseText === 'string') {
+            return responseText.trim();
+        } else {
+            console.warn("generateSceneDescription: AI did not return a valid text response. Falling back.");
+            // Fallback ke prompt pengguna jika AI gagal
+            return `She is ${userPrompt}.`;
+        }
+
     } catch (error) {
         console.error("Failed to generate scene description:", error);
-        // Fallback to the user prompt if the director fails
+        // Fallback ke prompt pengguna jika terjadi error
         return `She is ${userPrompt}.`;
     }
 }
@@ -3102,17 +3112,16 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         : '';
 
     let compositionInstruction = '';
-    let photographyStyleInstruction = ''; // Variabel baru untuk gaya fotografi
+    let photographyStyleInstruction = ''; 
 
     if (perspective === 'selfie') {
-        // --- DUNIA SELFIE (Gaya Kamera HP - Direvisi) ---
-        compositionInstruction = `Composition: an intimate first-person selfie taken with a front-facing smartphone camera; tight portrait framing from chest up; arm slightly extended holding the phone (phone is NOT visible); slight smartphone-lens distortion.`;
-        // MENGGANTI "candid" dengan deskripsi rasa yang lebih tepat
-        photographyStyleInstruction = `The image has an authentic, in-the-moment feel, as if spontaneously captured. It is not overly posed. Emphasize realistic details like subtle skin texture and natural hair flyaways under natural lighting.`;
+        // HANYA fokus pada TEKNIK kamera HP, buang semua instruksi pose.
+        compositionInstruction = `Composition: an intimate first-person selfie taken with a front-facing smartphone camera; the framing captures from the chest up; phone is NOT visible in frame; creates a slight smartphone-lens distortion.`;
+        photographyStyleInstruction = `The image has an authentic, in-the-moment feel, as if spontaneously captured. Emphasize realistic details and natural lighting.`;
     } else { 
-        // --- DUNIA VIEWER (Gaya Sinematik Profesional) ---
-        compositionInstruction = `Composition: from the user's direct viewpoint, looking at the character; tight portrait framing from chest up; shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.`;
-        photographyStyleInstruction = `The image exhibits exceptional professional photography quality - tack-sharp focus on the eyes, creamy bokeh background, and perfect exposure balance. Emphasize realistic details like visible pores and soft shadows.`;
+        // HANYA fokus pada TEKNIK kamera profesional, buang semua instruksi pose.
+        compositionInstruction = `Composition: shot from the user's direct viewpoint; framed tightly from the chest up; captured with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.`;
+        photographyStyleInstruction = `The image exhibits exceptional professional photography quality with tack-sharp focus on the eyes and a creamy bokeh background. Emphasize realistic details like visible pores and soft shadows.`;
     }
 
     const consistencyInstruction = `The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit should be ${outfitDescription}, maintained from the reference image unless the new context requires a change. Pose, expression, hairstyle, makeup, and immediate body condition (e.g., wet, sweaty, sleepy) should be dynamic and match the scene's context.`;
@@ -3134,28 +3143,47 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     ).trim().replace(/\s\s+/g, ' ');
 
     const parts: Part[] = [{ text: promptText }];
+    let finalReferenceImage: { dataUrl: string, id: string } | null = null;
+    let foundMimeType: string | undefined;
 
-    // Add reference image if available
+    // Coba dapatkan referensi dari session context terlebih dahulu
     if (activeCharacterSessionContext?.lastReferenceImage) {
-        const { id, mimeType } = activeCharacterSessionContext.lastReferenceImage;
-        let base64Data: string;
-        if (id === "0") {
-            base64Data = character.avatar.split(',')[1];
+        const ref = activeCharacterSessionContext.lastReferenceImage;
+        if (ref.id === "0") {
+            // Jika ID "0", sumbernya pasti avatar.
+            finalReferenceImage = { dataUrl: character.avatar, id: ref.id };
         } else {
-            const media = character.media.find(m => m.id === id);
+            // Cari di media gallery.
+            const media = character.media.find(m => m.id === ref.id);
             if (media && typeof media.data === 'string') {
-                base64Data = media.data.split(',')[1];
-            } else {
-                console.warn("Could not find reference image data");
+                finalReferenceImage = { dataUrl: media.data, id: ref.id };
             }
         }
-        if (base64Data) {
+    }
+    
+    // Jika tidak ada referensi dari session, fallback ke avatar
+    if (!finalReferenceImage) {
+        console.warn("No valid session reference, falling back to avatar.");
+        finalReferenceImage = { dataUrl: character.avatar, id: "0" };
+    }
+
+    // Ekstrak MIME type dari dataUrl yang sudah pasti.
+    if (finalReferenceImage) {
+        foundMimeType = finalReferenceImage.dataUrl.match(/data:(.*);base64,/)?.[1];
+    
+        // Jurus pertahanan terakhir: Hanya tambahkan jika datanya valid.
+        if (foundMimeType && foundMimeType.startsWith('image/')) {
+            const base64Data = finalReferenceImage.dataUrl.split(',')[1];
             parts.push({
                 inlineData: {
-                    mimeType: mimeType,
+                    mimeType: foundMimeType,
                     data: base64Data,
                 },
             });
+            console.log(`Successfully added reference image (ID: ${finalReferenceImage.id}) with MIME type: ${foundMimeType}`);
+        } else {
+            console.error(`Skipping reference image (ID: ${finalReferenceImage.id}) due to invalid MIME type: ${foundMimeType}`);
+            // Kita tidak mengirim referensi sama sekali jika tidak valid, mencegah error 400.
         }
     }
 
@@ -3355,88 +3383,13 @@ async function handleGenerateImageRequest(
         if (promptToUse) {
             finalEnglishPrompt = [{ text: promptToUse }];
         } else {
+            // ALUR OTOMATIS BARU TANPA KONFIRMASI
             statusEl.textContent = 'Directing scene...';
-            const lastMessageContent = character.chatHistory
-                .filter(m => m.sender === 'ai' && !m.content.includes('[GENERATE_'))
-                .pop()?.content || 'A neutral, happy mood.';
-
-            const sceneDescription = await generateSceneDescription(character, originalPrompt, lastMessageContent);
+            
+            const sceneDescription = await generateSceneDescription(character, originalPrompt, 'A neutral, happy mood.');
 
             statusEl.textContent = 'Constructing prompt...';
             finalEnglishPrompt = await constructMediaPrompt(character, sceneDescription);
-
-            // For AI-initiated, show prompt refinement modal, UNLESS it's the very first image (avatar-based)
-            if (isAiInitiated && !activeCharacterSessionContext?.lastReferenceImage) {
-                // Skip refinement modal for the first AI-initiated image (avatar-based)
-                console.log("Skipping prompt refinement for initial avatar-based image generation.");
-            } else if (isAiInitiated) {
-                const promptTextarea = document.getElementById('refine-prompt-textarea') as HTMLTextAreaElement;
-                const useBtn = document.getElementById('use-refine-prompt-btn') as HTMLButtonElement;
-                const refineBtn = document.getElementById('ai-refine-prompt-btn') as HTMLButtonElement;
-                const editBtn = document.getElementById('edit-refine-prompt-btn') as HTMLButtonElement;
-                const cancelBtn = document.getElementById('cancel-refine-prompt-btn') as HTMLButtonElement;
-
-                if (!promptTextarea) {
-                    console.error('refine-prompt-textarea element not found, skipping refinement');
-                    // Fallback to direct generation
-                    return await handleGenerateImageRequest(originalPrompt, {
-                        promptToUse: (finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '',
-                        modelToUse: modelToUse,
-                        safetyLevel: safetyLevel || 'flexible',
-                        manualReferenceImage: finalReferenceImage
-                    });
-                }
-
-                promptTextarea.value = (finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '';
-
-                await new Promise((resolve) => {
-                    const cleanup = () => {
-                        modals.promptRefine.style.display = 'none';
-                        useBtn.onclick = null;
-                        refineBtn.onclick = null;
-                        editBtn.onclick = null;
-                        cancelBtn.onclick = null;
-                    };
-
-                    useBtn.onclick = () => {
-                        cleanup();
-                        resolve(undefined);
-                    };
-
-                    refineBtn.onclick = async () => {
-                        refineBtn.disabled = true;
-                        refineBtn.textContent = 'Refining...';
-                        try {
-                            const refinedPrompt = await refinePromptWithAI((finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '');
-                            promptTextarea.value = refinedPrompt;
-                            finalEnglishPrompt = [{ text: refinedPrompt }];
-                        } catch (error) {
-                            console.error('AI refine failed:', error);
-                            alert('Failed to refine prompt with AI.');
-                        } finally {
-                            refineBtn.disabled = false;
-                            refineBtn.textContent = 'Refine with AI';
-                        }
-                    };
-
-                    editBtn.onclick = () => {
-                        promptTextarea.focus();
-                        promptTextarea.select();
-                    };
-
-                    cancelBtn.onclick = () => {
-                        cleanup();
-                        placeholder.remove();
-                        throw new Error('Prompt refinement cancelled');
-                    };
-
-                    promptTextarea.oninput = () => {
-                        finalEnglishPrompt = [{ text: promptTextarea.value }];
-                    };
-
-                    modals.promptRefine.style.display = 'flex';
-                });
-            }
         }
 
         // --- Generate Image ---
