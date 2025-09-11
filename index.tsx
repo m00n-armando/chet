@@ -2091,9 +2091,10 @@ async function handleConfirmGenerateAvatar() {
         } else {
              throw new Error("Image generation model returned no image data.");
         }
-    } catch (error) {
-        console.error(`Avatar generation with ${selectedModel} failed:`, error);
-        alert("Failed to generate avatar. You can try editing the prompt or the sheet and try again.");
+    } catch (error: any) {
+        const errorMessage = error.message || `Avatar generation with ${selectedModel} failed.`;
+        console.error(`Avatar generation with ${selectedModel} failed:`, errorMessage, error);
+        alert(`Failed to generate avatar: ${errorMessage}. You can try editing the prompt or the sheet and try again.`);
     } finally {
         hideLoading();
     }
@@ -2758,7 +2759,7 @@ async function editImage(base64ImageData: string, mimeType: string, instruction:
         console.warn("Image edit call succeeded but returned no image data.", response);
         throw new Error("Image editing failed. The model did not return an image. This can be due to safety filters or a non-visual instruction.");
 
-    } catch (error) {
+    } catch (error: any) {
         console.error(`Image editing failed.`, error);
         const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -3138,16 +3139,17 @@ async function generateImageWithFallback(
     try {
         return await generateImage(parts, model, safetyLevel, referenceImage, aspectRatio);
     } catch (error: any) {
-        console.warn(`Image generation failed with ${model}, attempting fallback to Imagen 4.0:`, error);
+        const errorMessage = error.message || `Image generation failed with ${model}.`;
+        console.warn(`Image generation failed with ${model}, attempting fallback to Imagen 4.0:`, errorMessage, error);
         if (model === 'gemini-2.5-flash-image-preview') {
             // If Nano Banana fails, try Imagen 4.0
             modals.imagenFallback.dataset.mediaId = 'temp_fallback_id'; // Placeholder
             modals.imagenFallback.dataset.prompt = (parts.find(p => 'text' in p) as { text: string })?.text || '';
             modals.imagenFallback.dataset.originalPrompt = (parts.find(p => 'text' in p) as { text: string })?.text || '';
             modals.imagenFallback.style.display = 'flex';
-            throw new Error('Nano Banana failed, offering Imagen 4.0 fallback.');
+            throw new Error(`Nano Banana failed: ${errorMessage}, offering Imagen 4.0 fallback.`);
         }
-        throw error; // Re-throw if already tried fallback or other model failed
+        throw new Error(`Image generation failed: ${errorMessage}`); // Re-throw with detailed message
     }
 }
 
@@ -3461,6 +3463,7 @@ async function handleGenerateImageRequest(
 
     } catch (error: any) {
         console.error(`Image generation failed:`, error);
+        const errorMessage = error.message || 'Image generation failed.';
         placeholder.classList.remove('loading');
         placeholder.classList.add('error');
         placeholder.dataset.failedPrompt = (finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '';
@@ -3474,7 +3477,7 @@ async function handleGenerateImageRequest(
         } else {
             tempRetryReferenceImage = null;
         }
-        placeholder.innerHTML = `<p>Error: ${error.message || 'Image generation failed.'}</p><button class="retry-edit-btn">Edit & Retry</button>`;
+        placeholder.innerHTML = `<p>Error: ${errorMessage}</p><button class="retry-edit-btn">Edit & Retry</button>`;
         
         placeholder.querySelector('.retry-edit-btn')!.addEventListener('click', () => {
             if (tempRetryReferenceImage) {
@@ -3516,18 +3519,19 @@ async function handleGenerateVoiceRequest(instruction: string) {
         placeholder.remove();
         appendMessageBubble(voiceMessage, character);
 
-    } catch (error) {
-        console.error('Failed to generate voice note:', error);
-        placeholder.innerHTML = `<span class="message-content">Failed to create voice note.</span>`;
+    } catch (error: any) {
+        const errorMessage = error.message || 'Failed to generate voice note.';
+        console.error('Failed to generate voice note:', errorMessage, error);
+        placeholder.innerHTML = `<span class="message-content">Failed to create voice note: ${errorMessage}</span>`;
         placeholder.classList.remove('voice');
         // Optionally, add a text message to history indicating failure
-        const errorMessage: Message = {
+        const errorMessageForChat: Message = {
             sender: 'ai',
-            content: '(Sorry, I had trouble creating that voice note.)',
+            content: `(Sorry, I had trouble creating that voice note: ${errorMessage})`,
             timestamp: new Date().toISOString(),
             type: 'text',
         };
-        character.chatHistory.push(errorMessage);
+        character.chatHistory.push(errorMessageForChat);
         await saveAppState({ userProfile, characters });
     }
 }
@@ -3695,19 +3699,20 @@ async function handleGenerateVideoRequest(prompt: string) {
         renderMediaGallery(); // Re-render gallery to show the new video
 
     } catch (error: any) { // Catch the error and determine its type
-        console.error("Video generation failed:", error);
+        const errorMessage = error.message || 'Video generation failed.';
+        console.error("Video generation failed:", errorMessage, error);
         placeholder.classList.remove('loading');
         placeholder.classList.add('error');
         
-        let errorMessage = 'Unknown error.';
-        if (error.message) {
-            errorMessage = error.message;
-        } else if (typeof error === 'string') {
-            errorMessage = error;
-        } else if (error.response && error.response.error && error.response.error.message) {
-            // Try to extract error message from API response if available
-            errorMessage = error.response.error.message;
-        }
+        // let errorMessage = 'Unknown error.'; // This block is now redundant
+        // if (error.message) {
+        //     errorMessage = error.message;
+        // } else if (typeof error === 'string') {
+        //     errorMessage = error;
+        // } else if (error.response && error.response.error && error.response.error.message) {
+        //     // Try to extract error message from API response if available
+        //     errorMessage = error.response.error.message;
+        // }
         
         placeholder.innerHTML = `
             <p>Error generating video: ${errorMessage}</p>
@@ -3970,9 +3975,10 @@ async function handleConfirmImageEdit() {
         await saveAppState({ userProfile, characters });
         renderMediaGallery(); // This will remove the placeholder and show the new image
 
-    } catch (error) {
-        console.error("Image edit failed:", error);
-        const errorMessage = error instanceof Error ? error.message : String(error);
+    } catch (error: any) {
+        const errorMessage = error.message || 'Image edit failed.';
+        console.error("Image edit failed:", errorMessage, error);
+        // const errorMessage = error instanceof Error ? error.message : String(error); // This line is now redundant
 
         // Remove the temporary loading placeholder on failure
         const tempPlaceholder = mediaGallery.querySelector(`[data-media-id="${newMediaId}"]`);
@@ -5595,11 +5601,12 @@ async function continueInit() {
             await saveAppState({ userProfile, characters });
 
 
-        } catch (error) {
+        } catch (error: any) {
              if (placeholder) {
                 placeholder.classList.remove('loading');
                 placeholder.classList.add('error');
-                placeholder.innerHTML = `<p>Error: Imagen 4.0 also failed.</p><button class="retry-edit-btn">Edit & Retry</button>`;
+                const errorMessage = error.message || 'Imagen 4.0 also failed.';
+                placeholder.innerHTML = `<p>Error: ${errorMessage}</p><button class="retry-edit-btn">Edit & Retry</button>`;
                  placeholder.querySelector('.retry-edit-btn')!.addEventListener('click', () => {
                     imageRetryElements.textarea.value = prompt;
                     imageRetryElements.regenerateBtn.dataset.mediaId = mediaId;
