@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ---CHET v.2.1.7---
+// ---CHET v.2.1.8---
+// Changelog v.2.1.8:
+// - Implement vite-plugin-pwa.
 // Changelog v.2.1.7:
 // - Updated `UserProfile` interface to store `chatTemperature` and `chatSafetyLevel`.
 // - Modified `updateSettingsUI` to reflect saved chat temperature and safety level.
@@ -5567,7 +5569,7 @@ async function continueInit() {
         
         try {
             const textPart: Part = { text: prompt };
-            const imageBase64 = await generateImage([textPart], 'imagen-4.0-generate-001', 'unrestricted');
+            const imageBase64 = await generateImage([textPart], 'imagen-4.0-generate-001', 'flexible');
              const character = characters.find(c => c.id === activeCharacterId)!;
              const newMedia: Media = {
                 id: mediaId,
