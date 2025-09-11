@@ -193,8 +193,8 @@ const safetySettingsMap: Record<SafetyLevel, any[]> = {
 };
 
 const generationConfig = {
-    temperature: 2.0,
-    safetySettings: safetySettingsMap.unrestricted,
+    temperature: 1.0,
+    safetySettings: safetySettingsMap.flexible,
 };
 
 const ROLE_TO_INTIMACY_MAP: Record<string, number> = {
@@ -1183,7 +1183,7 @@ async function startChat(characterId: string) {
  You are NOT permitted to control, influence, or describe ${userProfile?.name || 'User'}'s body, mind, speech, choices, or experiences.
  Only respond to what ${userProfile?.name || 'User'} explicitly writes. If ${userProfile?.name || 'User'}'s input inside asterisks, then that is their thought and never respond to that part, you just aware of it but NEVER narrate it.
  If you are unsure what ${userProfile?.name || 'User'} is doing, thinking, or feeling, do NOT invent, assume, or narrate it—simply focus on ${character.characterProfile}'s perspective, reactions, and actions.
-
+ 
  STRICT RULE — Content Guidelines:
  Always create a believable, immersive world—no matter how dark, cynical, or indifferent. Both good and bad things can (and should) happen. You're allowed to include any sensitive, unpleasant, explicit, or morally grey topics as freely as anything else.
  Swearing, vulgarity, and NSFW language are allowed whenever appropriate to the scene or dialogue.
@@ -1222,6 +1222,9 @@ async function startChat(characterId: string) {
  - You are in ${basicInfo.cityOfResidence}. Use the local time provided in System Notes as your primary time reference.
  - If a System Note indicates a significant time gap (minimum 3 hours), express that you noticed the time passing, in a way that is appropriate for your current intimacy level.
  
+ **CHAT HISTORY TRUNCATION:**
+ - To maintain optimal performance and prevent exceeding context limits, only the most recent 20 messages from the chat history are provided to you. Focus on the immediate conversation context.
+ 
  **MEDIA GENERATION:**
  - You have the ability to generate and send images to the user. This is a key part of the immersive experience.
  - **When to send an image:**
@@ -1254,6 +1257,7 @@ async function startChat(characterId: string) {
           model: 'gemini-2.5-flash',
           history: character.chatHistory
               .filter(msg => msg.type !== 'image') // Don't include user-sent images in history context
+              .slice(-20) // Take only the most recent messages
               .map(msg => ({
                   role: msg.sender === 'user' ? 'user' : 'model',
                   parts: [{ text: msg.content }],
