@@ -564,8 +564,8 @@ select option {
     overflow: hidden; /* Prevent the whole screen from scrolling */
     height: 100%;
     position: relative;
-    background-size: 200%;
-    background-position: center top 75px;
+    background-size: cover;
+    background-position: 50% 75px;
     background-repeat: no-repeat;
     justify-content: flex-end;
 }
@@ -1030,7 +1030,7 @@ select option {
     overflow-y: auto; /* Enable vertical scrolling if content overflows */
     display: flex; /* Added for flexbox layout */
     flex-direction: column; /* Arrange children in a column */
-    gap: 1.5rem; /* Spacing between elements */
+    gap: 0.5rem; /* Spacing between elements */
 }
 .fullscreen-prompt-content {
     background: var(--surface-color);
@@ -1275,9 +1275,9 @@ input:checked + .slider:before {
 }
 .label-with-button {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
     width: 100%;
+    align-items: flex-end;
+    justify-content: space-between;
 }
 .ai-assist-inline-btn {
     background: none;
