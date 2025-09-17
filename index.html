@@ -353,10 +353,14 @@
              <div id="chat-messages" class="chat-messages"></div>
              <footer class="chat-footer">
                 <div id="markdown-buttons" class="markdown-buttons hidden">
-                  <button class="markdown-btn" data-markdown="*">*tindakan*</button>
-                  <button class="markdown-btn" data-markdown="()">(pemikiran)</button>
-                  <button class="markdown-btn" data-markdown="[]">[situasi]</button>
-                  <button class="markdown-btn" data-markdown='"'>"dialog"</button>
+                  <button class="markdown-btn" data-markdown="*">*</button>
+                  <button class="markdown-btn" data-markdown="()">()</button>
+                  <button class="markdown-btn" data-markdown="[]">[]</button>
+                  <button class="markdown-btn" data-markdown='"'>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" width="16" height="16">
+                      <path d="M12 12a1 1 0 0 0 1-1V8.558a1 1 0 0 0-1-1h-1.388q0-.527.062-1.054.093-.558.31-.992t.559-.683q.34-.279.868-.279V3q-.868 0-1.52.372a3.3 3.3 0 0 0-1.085.992 4.9 4.9 0 0 0-.62 1.458A7.7 7.7 0 0 0 9 7.558V11a1 1 0 0 0 1 1zm-6 0a1 1 0 0 0 1-1V8.558a1 1 0 0 0-1-1H5.612q0-.527.062-1.054.094-.558.31-.992t.559-.683q.34-.279.868-.279V3q-.868 0-1.52.372a3.3 3.3 0 0 0-1.085.992 4.9 4.9 0 0 0-.62 1.458A7.7 7.7 0 0 0 3 7.558V11a1 1 0 0 0 1 1z"/>
+                    </svg>
+                  </button>
                 </div>
                 <form id="chat-form" class="chat-form">
                     <div class="chat-action-menu">
@@ -446,8 +450,12 @@
             </div>
             <div class="settings-section about-section">
                 <h4>About CHET</h4>
-                <p>Version 2.1.8</p>
+                <p>Version 2.2.0</p>
                 <div class="changelog-section">
+                  <p><strong>Changelog v.2.2.0:</strong></p>
+                  <ul>
+                    <li>Add markdown button.</li>
+                  </ul>
                   <p><strong>Changelog v.2.1.8:</strong></p>
                   <ul>
                     <li>Implement vite-plugin-pwa.</li>
@@ -458,19 +466,6 @@
                     <li>Modified `updateSettingsUI` to reflect saved chat temperature and safety level.</li>
                     <li>Added event listeners for chat temperature and safety level inputs to update user preferences.</li>
                     <li>Applied user-defined chat temperature and safety level to new chat sessions.</li>
-                  </ul>
-                  <p><strong>Changelog v.2.1.6:</strong></p>
-                  <ul>
-                    <li>Refined AI prompt generation to prevent image creation failures.</li>
-                    <li>Added reference image display to the "Edit & Retry" modal.</li>
-                    <li>Improved the reference image selection gallery with a grid layout.</li>
-                    <li>Fixed a bug with `.zip` file imports not displaying images correctly.</li>
-                    <li>Enhanced the `.zip` export process to include all media types.</li>
-                  </ul>
-                  <p><strong>Changelog v.2.1.5:</strong></p>
-                  <ul>
-                    <li>Add innate power level systems to character.</li>
-                    <li>Add innate power AI mechanism auto trigger.</li>
                   </ul>
                 </div>
             </div>

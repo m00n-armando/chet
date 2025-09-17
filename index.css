@@ -804,7 +804,44 @@ select option {
     z-index: 2;
     background: var(--surface-color);
     border-top: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
 }
+
+.markdown-buttons {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    transition: all 0.3s ease-in-out;
+    overflow: hidden;
+}
+
+.markdown-buttons.hidden {
+    opacity: 0;
+    visibility: hidden;
+    height: 0;
+    padding: 0;
+}
+
+.markdown-btn {
+    background-color: var(--user-bubble-bg);
+    color: var(--text-secondary-color);
+    border: 1px solid var(--border-color);
+    border-radius: 15px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.markdown-btn:hover {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
 .chat-form {
     display: flex;
     padding: 0.75rem;

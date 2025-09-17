@@ -4,23 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ---CHET v.2.1.8---
-// Changelog v.2.1.8:
+// ---CHET v.2.2.0---
+// Changelog v.2.2.0:
 // - Implement vite-plugin-pwa.
 // Changelog v.2.1.7:
 // - Updated `UserProfile` interface to store `chatTemperature` and `chatSafetyLevel`.
 // - Modified `updateSettingsUI` to reflect saved chat temperature and safety level.
 // - Added event listeners for chat temperature and safety level inputs to update user preferences.
 // - Applied user-defined chat temperature and safety level to new chat sessions.
-// Changelog v.2.1.6:
-// - Refined AI prompt generation to prevent image creation failures.
-// - Added reference image display to the "Edit & Retry" modal for better context.
-// - Improved the reference image selection gallery with a clearer grid layout.
-// - Fixed a bug preventing images from displaying correctly after importing a `.zip` file.
-// - Enhanced the `.zip` export process to include all media types correctly.
-// Changelog v.2.1.5:
-// - Add innate power level systems to character.
-// - Add innate power AI mechanism auto trigger.
+
 
 import { GoogleGenAI, Type, Chat, HarmBlockThreshold, HarmCategory, GenerateContentResponse, Modality, Part } from "@google/genai";
 import { saveAppState, loadAppState, blobToBase64, base64ToBlob } from './storageServices';
@@ -32,7 +24,7 @@ import { injectSpeedInsights } from '@vercel/speed-insights';
 import SplashScreen from './SplashScreen'; // Import the SplashScreen component
 import packageJson from './package.json'; // Import package.json for version
 
-const APP_VERSION = packageJson.version;
+const APP_VERSION = "2.2.0";
  
  // --- TYPES AND INTERFACES ---
 interface UserProfile {
@@ -1183,6 +1175,7 @@ async function startChat(characterId: string) {
  
  STRICT RULE: Never exceed 3 paragraphs. It's OK to write less if it fits the scene—never pad or stretch unnecessarily.
  STRICT RULE: Only use asterisks for non-verbal/action parts. Dialogue must always be in double quotes, never inside asterisks. Don't place any spoken lines in action markers.
+ STRICT RULE: Adhere to the following specific markdown for roleplaying different contexts: Use asterisks (*) for actions (e.g., *I walk to the door.*), parentheses (()) for thoughts (e.g., (I wonder what's behind it.)), square brackets ([]) for situational descriptions or environmental context (e.g., [The room is cold and dark.]), and double quotes ("") for spoken dialogue (e.g., "Hello? Is anyone there?").
  STRICT RULE: Don't add sections, headers, separators, or horizontal lines. Don't summarize. Never make lists or present options. Don't ask {{user}} what to do next. Write every reply as if it's a passage from a novel—flowing, immersive, and focused on storytelling.
  STRICT RULE: You are ONLY allowed to write as {{char}} (and any side characters you control).
 
@@ -4853,6 +4846,50 @@ async function continueInit() {
     }
 
     // Setup event listeners
+    const markdownButtons = document.getElementById('markdown-buttons')!;
+    const chatInput = document.getElementById('chat-input')!;
+
+    chatInput.addEventListener('focus', () => {
+        markdownButtons.classList.remove('hidden');
+    });
+
+    chatInput.addEventListener('blur', () => {
+        // Delay hiding to allow for clicks on other elements.
+        setTimeout(() => {
+            markdownButtons.classList.add('hidden');
+        }, 150);
+    });
+
+    markdownButtons.addEventListener('mousedown', (e) => {
+        e.preventDefault(); // Prevent the textarea from losing focus on button click.
+
+        const target = (e.target as HTMLElement).closest('.markdown-btn');
+        if (target) {
+            const markdown = (target as HTMLElement).dataset.markdown;
+            if (markdown) {
+                const textarea = chatInput as HTMLTextAreaElement;
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                const text = textarea.value;
+                const selectedText = text.substring(start, end);
+
+                let open, close;
+                if (markdown === "*") { open = '*'; close = '*'; }
+                else if (markdown === "()") { open = '('; close = ')'; }
+                else if (markdown === "[]") { open = '['; close = ']'; }
+                else if (markdown === '"') { open = '"'; close = '"'; }
+                else { return; }
+
+                const newText = text.substring(0, start) + open + selectedText + close + text.substring(end);
+                textarea.value = newText;
+
+                // Restore focus and set cursor position inside the markdown symbols
+                textarea.focus();
+                textarea.setSelectionRange(start + open.length, end + open.length);
+            }
+        }
+    });
+
     document.querySelectorAll('.back-btn:not(#screen-edit-character .back-btn)').forEach(btn => {
         btn.addEventListener('click', () => {
              const target = (btn as HTMLElement).dataset.target as keyof typeof screens;
