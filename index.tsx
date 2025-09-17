@@ -2806,7 +2806,8 @@ async function generateConciseImagePrompt(
     character: Character,
     sessionContext: SessionContext | null,
     narrativeContext: string,
-    userRequest: string
+    userRequest: string,
+    perspective: 'selfie' | 'viewer'
 ): Promise<{ concise_prompt: string; negative_prompt: string }> {
     if (!ai) {
         throw new Error("AI not initialized");
@@ -2819,24 +2820,32 @@ You are an expert AI prompt director for a photographic, ultra-realistic image g
 
 **INPUT DATA YOU WILL RECEIVE:**
 1.  **Character Profile:** ${JSON.stringify(character.characterProfile)}
-2.  **Session Context:** Current outfit: ${sessionContext?.outfit || 'not specified'}, Location: ${sessionContext?.location || 'not specified'}, Time of Day: ${timeDescription}.
+2.  **Session Context:** Current hairstyle: ${sessionContext?.hairstyle || 'not specified'}, Current outfit: ${sessionContext?.outfit || 'not specified'}, Location: ${sessionContext?.location || 'not specified'}, Time of Day: ${timeDescription}.
 3.  **Narrative Context:** The last message from the character in the conversation: "${narrativeContext}"
 4.  **User Request:** A brief instruction for the image: "${userRequest}"
+5.  **Perspective:** "${perspective}"
 
 **YOUR TASK:**
 Based on ALL the input data, generate a structured JSON output with two fields: \`concise_prompt\` and \`negative_prompt\`.
 
-**RULES FOR \`concise_prompt\`:**
+**CRITICAL RULES FOR \`concise_prompt\`:**
 1.  **BE CONCISE:** Use comma-separated keywords and very short, descriptive phrases. The entire prompt MUST NOT exceed 75 words.
-2.  **SYNTHESIZE, DON'T LIST:** Intelligently combine all context. If it's night and the character is in bed, the prompt should reflect a "sleepy" or "relaxed" mood, not list \`(e.g., wet, sweaty, sleepy)\`.
-3.  **FOCUS ON THE DYNAMIC:** Prioritize what's happening *now*: the character's current emotion, micro-action, expression, and the specific lighting of the scene.
-4.  **DO NOT REPEAT CORE IDENTITY:** Do not describe core traits like ethnicity or name if a reference image is being used for consistency. Focus only on the dynamic elements.
-5.  **ADHERE TO PHOTOGRAPHIC TERMS:** Use terms like \`ultra realistic photo\`, \`85mm lens\`, \`shallow depth of field\`, \`cinematic lighting\`, \`selfie perspective\`, \`chest-up frame\`.
+2.  **SYNTHESIZE, DON'T LIST:** Intelligently combine all context. If the narrative says she just showered, the prompt must include "wet hair" and "damp skin", not just list "showered".
+3.  **FOCUS ON THE DYNAMIC:** Prioritize what's happening *now*. This includes:
+    - **Emotion & Expression:** Derived from the narrative context. (e.g., \`vulnerable expression\`, \`mischievous grin\`).
+    - **Pose & Action:** Derived from the user request and narrative. (e.g., \`sitting on the bed\`, \`leaning against a wall\`).
+    - **Body Condition:** Inferred from the narrative. (e.g., \`face slightly flushed\`, \`sweaty after a workout\`, \`sleepy eyes\`).
+4.  **MANDATORY CONTEXT:** You MUST incorporate the **hairstyle**, **outfit**, and **location** from the Session Context into the scene description. This is not optional.
+5.  **PERSPECTIVE IS KEY:**
+    - If Perspective is **"selfie"**: The character is far from the user. Use terms like \`intimate selfie perspective\`, \`phone held by her\`, \`close-up selfie\`, \`looking into her phone's camera\`.
+    - If Perspective is **"viewer"**: The character is meeting the user directly. Use terms like \`point of view shot\`, \`from user's perspective\`, \`looking directly at viewer\`, \`85mm portrait lens\`, \`intimate close-up\`.
+6.  **DO NOT REPEAT CORE IDENTITY:** Do not describe core traits like ethnicity or name; the reference image handles this. Focus only on the dynamic elements: pose, expression, hairstyle, clothing, location, lighting, body condition.
+7.  **PHOTOGRAPHIC TERMS:** Use professional terms like \`ultra realistic photo\`, \`cinematic quality\`, \`shallow depth of field\`, \`natural lighting\`, \`shot on film\`.
 
 **EXAMPLE OUTPUT FORMAT (JSON ONLY):**
 {
-  "concise_prompt": "ultra realistic photo, 18yo Indonesian woman, messy white hair, bedroom at night, intimate selfie perspective, mischievous grin as she looks at the camera, chest-up frame, dimly lit by a single bedside lamp, cinematic quality, shallow depth of field, authentic moment",
-  "negative_prompt": "3d, cgi, cartoon, anime, illustration, digital art, blurry, deformed, disfigured"
+  "concise_prompt": "ultra realistic photo, point of view shot, she is wearing a black silk nightgown, sitting on a dimly lit hotel room bed, looking directly at viewer with a soft, vulnerable expression, hesitant smile, messy hair framing her face, cinematic quality, 85mm lens, shallow depth of field",
+  "negative_prompt": "3d, cgi, cartoon, anime, illustration, digital art, blurry, deformed, disfigured, phone"
 }
 `;
 
@@ -2845,7 +2854,7 @@ Based on ALL the input data, generate a structured JSON output with two fields: 
             model: 'gemini-2.5-flash',
             contents: promptForDirector,
             config: {
-                temperature: 0.5,
+                temperature: 0.9,
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.OBJECT,
@@ -2878,6 +2887,8 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         .filter(m => m.sender === 'ai' && m.type !== 'image')
         .pop()?.content || 'A neutral, happy mood.';
     
+    const perspectiveMatch = userPrompt.match(/<perspective:\s*(selfie|viewer)>/i);
+    const perspective = (perspectiveMatch ? perspectiveMatch[1].toLowerCase() : 'selfie') as 'selfie' | 'viewer';
     let cleanedUserPrompt = userPrompt.replace(/<perspective:\s*(selfie|viewer)>/i, '').trim();
 
     // --- Part 2: Generate Concise Prompt using the new AI Director ---
@@ -2885,7 +2896,8 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         character,
         activeCharacterSessionContext,
         lastMessageContent,
-        cleanedUserPrompt
+        cleanedUserPrompt,
+        perspective
     );
 
     // --- Part 3: Assemble Final Prompt Text ---
