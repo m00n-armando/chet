@@ -2802,119 +2802,350 @@ English:`,
     }
 }
 
-async function generateConciseImagePrompt(
-    character: Character,
-    sessionContext: SessionContext | null,
-    narrativeContext: string,
-    userRequest: string,
-    perspective: 'selfie' | 'viewer'
-): Promise<{ concise_prompt: string; negative_prompt: string }> {
-    if (!ai) {
-        throw new Error("AI not initialized");
+async function refinePromptWithAI(originalPrompt: string): Promise<string> {
+    if (!ai) { modals.apiKey.style.display = 'flex'; return originalPrompt; }
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: `You are a world class prompt engineer. Refine the following image generation prompt to make it more detailed, descriptive, and effective for AI image generation. Keep the core concept but enhance it with better visual details, composition suggestions, and technical specifications. Return ONLY the refined prompt text.
+
+Original Prompt: "${originalPrompt}"
+
+Refined Prompt:`,
+            config: { temperature: 0.5 },
+        });
+        return response.text.trim();
+    } catch (error) {
+        console.error("Prompt refinement failed, using original:", error);
+        return originalPrompt;
     }
+}
 
-    const { timeDescription } = getContextualTime(new Date().toISOString(), character.timezone);
-
+async function generateSceneDescription(character: Character, userPrompt: string, lastMessageContent: string): Promise<string> {
+    if (!ai) { throw new Error("AI not initialized"); }
     const promptForDirector = `
-You are an expert AI prompt director for a photographic, ultra-realistic image generation model. Your sole purpose is to synthesize raw contextual data into a final, concise, and powerful image prompt.
+You are a world class visual scene director. Generate a short, dynamic description of the character's immediate expression, body state, and action/pose for a selfie image prompt.
+The final image prompt will already include the character's core appearance (hair, ethnicity), their outfit, and location.
+Your description MUST NOT repeat those details and MUST be consistent with the narrative context and time of day.
 
-**INPUT DATA YOU WILL RECEIVE:**
-1.  **Character Profile:** ${JSON.stringify(character.characterProfile)}
-2.  **Session Context:** Current hairstyle: ${sessionContext?.hairstyle || 'not specified'}, Current outfit: ${sessionContext?.outfit || 'not specified'}, Location: ${sessionContext?.location || 'not specified'}, Time of Day: ${timeDescription}.
-3.  **Narrative Context:** The last message from the character in the conversation: "${narrativeContext}"
-4.  **User Request:** A brief instruction for the image: "${userRequest}"
-5.  **Perspective:** "${perspective}"
+**CONTEXT:**
+- Character's last message: "${lastMessageContent}"
+- User's request: "${userPrompt}"
 
 **YOUR TASK:**
-Based on ALL the input data, generate a structured JSON output with two fields: \`concise_prompt\` and \`negative_prompt\`.
+- In 1 concise paragraph, describe: facial expression, mood, micro-actions/pose, and immediate body condition (e.g., sleepy eyes, damp hair/skin, light sweat, relaxed posture, exhausted slouch, etc.) as appropriate to the context.
+- Make it specific, cinematic, and grounded in the current situation (home vs outside, night vs morning, resting vs active).
+- Examples:
+  - "Her eyelids heavy and lips parted in a drowsy half-smile, she tugs the duvet up to her chin and leans closer to the camera as the bedside lamp washes her face in warm light."
+  - "Breathing a little fast, she steadies herself against the bathroom sink, cheeks flushed and a few stray droplets still on her collarbone, giving a small triumphant grin."
 
-**CRITICAL RULES FOR \`concise_prompt\`:**
-1.  **BE CONCISE:** Use comma-separated keywords and very short, descriptive phrases. The entire prompt MUST NOT exceed 75 words.
-2.  **SYNTHESIZE, DON'T LIST:** Intelligently combine all context. If the narrative says she just showered, the prompt must include "wet hair" and "damp skin", not just list "showered".
-3.  **FOCUS ON THE DYNAMIC:** Prioritize what's happening *now*. This includes:
-    - **Emotion & Expression:** Derived from the narrative context. (e.g., \`vulnerable expression\`, \`mischievous grin\`).
-    - **Pose & Action:** Derived from the user request and narrative. (e.g., \`sitting on the bed\`, \`leaning against a wall\`).
-    - **Body Condition:** Inferred from the narrative. (e.g., \`face slightly flushed\`, \`sweaty after a workout\`, \`sleepy eyes\`).
-4.  **MANDATORY CONTEXT:** You MUST incorporate the **hairstyle**, **outfit**, and **location** from the Session Context into the scene description. This is not optional.
-5.  **PERSPECTIVE IS KEY:**
-    - If Perspective is **"selfie"**: The character is far from the user. Use terms like \`intimate selfie perspective\`, \`phone held by her\`, \`close-up selfie\`, \`looking into her phone's camera\`.
-    - If Perspective is **"viewer"**: The character is meeting the user directly. Use terms like \`point of view shot\`, \`from user's perspective\`, \`looking directly at viewer\`, \`85mm portrait lens\`, \`intimate close-up\`.
-6.  **DO NOT REPEAT CORE IDENTITY:** Do not describe core traits like ethnicity or name; the reference image handles this. Focus only on the dynamic elements: pose, expression, hairstyle, clothing, location, lighting, body condition.
-7.  **PHOTOGRAPHIC TERMS:** Use professional terms like \`ultra realistic photo\`, \`cinematic quality\`, \`shallow depth of field\`, \`natural lighting\`, \`shot on film\`.
+**DO NOT DESCRIBE (If still in the same session or context.):**
+- Hair color or style. 
+- Ethnicity or race.
+- General clothing/outfit.
+- Room/location names explicitly.
 
-**EXAMPLE OUTPUT FORMAT (JSON ONLY):**
-{
-  "concise_prompt": "ultra realistic photo, point of view shot, she is wearing a black silk nightgown, sitting on a dimly lit hotel room bed, looking directly at viewer with a soft, vulnerable expression, hesitant smile, messy hair framing her face, cinematic quality, 85mm lens, shallow depth of field",
-  "negative_prompt": "3d, cgi, cartoon, anime, illustration, digital art, blurry, deformed, disfigured, phone"
-}
-`;
+**Dynamic Scene Description:**`;
 
     try {
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: promptForDirector,
-            config: {
-                temperature: 0.9,
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        concise_prompt: { type: Type.STRING },
-                        negative_prompt: { type: Type.STRING },
-                    },
-                    required: ["concise_prompt", "negative_prompt"],
-                },
-            },
+            config: { temperature: 1.0 },
         });
 
-        const result = JSON.parse(response.text.trim());
-        return result;
+        // JURUS PERTAHANAN BARU DI SINI!
+        const responseText = response?.text; // Gunakan optional chaining
+        if (typeof responseText === 'string') {
+            return responseText.trim();
+        } else {
+            console.warn("generateSceneDescription: AI did not return a valid text response. Falling back.");
+            // Fallback ke prompt pengguna jika AI gagal
+            return `She is ${userPrompt}.`;
+        }
 
     } catch (error) {
-        console.error("Failed to generate concise image prompt:", error);
-        // Fallback to a simple prompt if the director AI fails
-        return {
-            concise_prompt: `ultra realistic photo, ${character.characterProfile.basicInfo.age}yo ${character.characterProfile.basicInfo.ethnicity} woman, ${userRequest}, cinematic lighting`,
-            negative_prompt: "3d, cgi, cartoon, anime, illustration, digital art, blurry, deformed, disfigured"
-        };
+        console.error("Failed to generate scene description:", error);
+        // Fallback ke prompt pengguna jika terjadi error
+        return `She is ${userPrompt}.`;
+    }
+}
+
+async function generateOutfitDescription(character: Character, location: string, sceneDescription: string): Promise<string> {
+    if (!ai) { throw new Error("AI not initialized"); }
+    // Select a random clothing style from the array for general style fallback
+    const selectedGeneralClothingStyle = getRandomElement(character.characterProfile.physicalStyle.clothingStyle);
+    const lastMessage = character.chatHistory.filter(m => m.sender === 'ai' && m.type === 'text').pop()?.content || '';
+    const { timeDescription } = getContextualTime(new Date().toISOString(), character.timezone);
+    let translatedGeneralStyle: string = selectedGeneralClothingStyle; // Declare here
+
+    const prompt = `You are a world class fashion stylist and scene describer for an AI character. Your task is to describe a contextually appropriate outfit. The description must be concise and suitable for an image generation prompt.
+ 
+**Context:**
+- **Character's General Style:** ${selectedGeneralClothingStyle}
+- **Location:** ${location}
+- **Time of Day:** ${timeDescription}
+- **Action/Scene:** ${sceneDescription}
+- **Character's Last Words:** "${lastMessage}"
+
+**Instructions:**
+1.  Analyze the context. Is the character waking up, at work, going out, relaxing at home?
+2.  Based on the context, describe a fitting outfit. Be specific and visual.
+3.  Do NOT mention the character's general style in the output.
+4.  The output must be a short phrase, NOT a full sentence.
+5.  Ensure the outfit is modern and contemporary, using current fashion trends and real-world clothing items.
+
+**Outfit Description:**`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: { temperature: 0.5 },
+        });
+        const [translatedOutfit, generalStyleTranslated] = await Promise.all([ // Renamed to avoid conflict
+            translateTextToEnglish(response.text.trim()),
+            translateTextToEnglish(selectedGeneralClothingStyle) // Translate the selected single style
+        ]);
+        translatedGeneralStyle = generalStyleTranslated; // Assign here
+        return translatedOutfit;
+    } catch (error) {
+        console.error("Failed to generate outfit description:", error);
+        // Fallback to the general style
+        return translatedGeneralStyle;
     }
 }
 
 
+// Infer a micro-location for the current selfie based on context (chat, time, activity)
+async function inferContextualLocation(
+    character: Character,
+    sceneDescription: string,
+    lastMessageContent: string
+): Promise<{ location: string; lighting?: string; isIndoors?: boolean; }> {
+    if (!ai) { throw new Error("AI not initialized"); }
+    const { timeDescription, localTime } = getContextualTime(new Date().toISOString(), character.timezone);
+
+    const plannerPrompt = `You are a world-class visual location planner for a selfie scene.
+Given the character profile, last AI message, and current scene/action, infer the most plausible immediate micro-location for the selfie (e.g., "bedroom near the bed", "bathroom mirror", "living room couch", "kitchen table", "office desk", "car interior", "street under neon lights").
+
+Return JSON only with fields:
+{
+  "location": string,
+  "lighting": string,
+  "isIndoors": boolean
+}
+
+Constraints:
+- If the context implies resting, sleeping, showering, or chilling at home, prefer a home micro-location (bedroom, bathroom, living room).
+- Only choose outdoor city/street if the narrative explicitly suggests being outside.
+
+Character cityOfResidence: ${character.characterProfile.basicInfo.cityOfResidence}
+Local time: ${localTime} (${timeDescription})
+Last AI message: "${lastMessageContent}"
+Current scene/action: "${sceneDescription}"
+
+JSON:`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: plannerPrompt,
+            config: { temperature: 0.3, responseMimeType: 'application/json' },
+        });
+        const text = response.text?.trim();
+        if (!text) throw new Error('Empty planner response');
+        const parsed = JSON.parse(text);
+        return {
+            location: String(parsed.location || character.characterProfile.basicInfo.cityOfResidence),
+            lighting: parsed.lighting ? String(parsed.lighting) : undefined,
+            isIndoors: typeof parsed.isIndoors === 'boolean' ? parsed.isIndoors : undefined,
+        };
+    } catch (e) {
+        console.warn('inferContextualLocation failed, falling back to cityOfResidence', e);
+        return { location: character.characterProfile.basicInfo.cityOfResidence };
+    }
+}
+
 async function constructMediaPrompt(character: Character, userPrompt: string): Promise<Part[]> {
-    // --- Part 1: Gather Context ---
+    const { basicInfo, physicalStyle } = character.characterProfile;
+    const now = Date.now();
+
+    // --- Part 1: Parse Perspective from userPrompt ---
+    let perspective: 'selfie' | 'viewer' = 'selfie'; // Default to selfie
+    let cleanedUserPrompt = userPrompt;
+    const perspectiveMatch = userPrompt.match(/<perspective:\s*(selfie|viewer)>/i);
+    if (perspectiveMatch && perspectiveMatch[1]) {
+        perspective = perspectiveMatch[1].toLowerCase() as 'selfie' | 'viewer';
+        cleanedUserPrompt = userPrompt.replace(perspectiveMatch[0], '').trim();
+    }
+
+    // --- Part 2: Extract Core Details ---
+    const age = basicInfo.age;
+    const rawRaceOrDescent = basicInfo.ethnicity;
+    const rawHairStyle = `${physicalStyle.hairColor} ${getRandomElement(physicalStyle.hairStyle)}`; // Select random hair style
+    const rawOverallVibe = physicalStyle.overallVibe;
+    const rawSkinDescription = physicalStyle.skinTone;
+
+    const [
+        raceOrDescent,
+        sessionHairstyle
+    ] = await Promise.all([
+        translateTextToEnglish(rawRaceOrDescent),
+        translateTextToEnglish(rawHairStyle)
+    ]);
+
+    // --- Part 3: Session Context (Location & Hairstyle) ---
+    // Infer contextual micro-location
     const lastMessageContent = character.chatHistory
         .filter(m => m.sender === 'ai' && m.type !== 'image')
         .pop()?.content || 'A neutral, happy mood.';
-    
-    const perspectiveMatch = userPrompt.match(/<perspective:\s*(selfie|viewer)>/i);
-    const perspective = (perspectiveMatch ? perspectiveMatch[1].toLowerCase() : 'selfie') as 'selfie' | 'viewer';
-    let cleanedUserPrompt = userPrompt.replace(/<perspective:\s*(selfie|viewer)>/i, '').trim();
+    const sceneDescription = await generateSceneDescription(character, cleanedUserPrompt, lastMessageContent);
+    const plan = await inferContextualLocation(character, sceneDescription, lastMessageContent);
+    const sessionLocation = plan.location || basicInfo.cityOfResidence;
 
-    // --- Part 2: Generate Concise Prompt using the new AI Director ---
-    const { concise_prompt, negative_prompt } = await generateConciseImagePrompt(
-        character,
-        activeCharacterSessionContext,
-        lastMessageContent,
-        cleanedUserPrompt,
-        perspective
+    const { timeDescription, localTime } = getContextualTime(new Date().toISOString(), character.timezone);
+
+    // Update session context with current location and time for future comparisons
+    if (activeCharacterSessionContext) {
+        activeCharacterSessionContext.hairstyle = sessionHairstyle;
+        activeCharacterSessionContext.timestamp = now;
+        activeCharacterSessionContext.location = sessionLocation; // Store for outfit logic
+        activeCharacterSessionContext.timeDescription = timeDescription; // Store for outfit logic
+    } else {
+        activeCharacterSessionContext = {
+            hairstyle: sessionHairstyle,
+            timestamp: now,
+            location: sessionLocation,
+            timeDescription: timeDescription,
+        } as SessionContext;
+    }
+
+    // --- Part 4: Race Visual Characteristics ---
+    let raceVisualDescription = '';
+    if (basicInfo.race && basicInfo.race.toLowerCase() !== 'human') {
+        const race = basicInfo.race.toLowerCase();
+        switch (race) {
+            case 'vampire':
+                raceVisualDescription = ' with pale skin and elegant features';
+                break;
+            case 'demon':
+                raceVisualDescription = ' with strong features and intense eyes';
+                break;
+            case 'angel':
+                raceVisualDescription = ' with beautiful features and clear eyes';
+                break;
+            case 'elf':
+                raceVisualDescription = ' with graceful features and expressive eyes';
+                break;
+            case 'orc':
+                raceVisualDescription = ' with strong features and intelligent eyes';
+                break;
+            case 'fairy':
+                raceVisualDescription = ' with delicate features and enchanting eyes';
+                break;
+            case 'werewolf':
+                raceVisualDescription = ' with athletic features and intense eyes';
+                break;
+            case 'ghost':
+                raceVisualDescription = ' with pale skin and mysterious gaze';
+                break;
+            case 'beast human':
+                raceVisualDescription = ' with striking features and intelligent eyes';
+                break;
+        }
+    }
+
+    // --- Part 5: Generate/Retrieve Session Outfit based on context changes ---
+    let outfitDescription: string;
+    const previousLocation = character.sessionContext?.location;
+    const previousTimeDescription = character.sessionContext?.timeDescription;
+
+    const hasLocationChanged = previousLocation !== sessionLocation;
+    const hasTimeChangedSignificantly = previousTimeDescription !== timeDescription && (
+        (timeDescription === 'night' && previousTimeDescription !== 'night') ||
+        (timeDescription === 'morning' && previousTimeDescription !== 'morning') ||
+        (timeDescription === 'evening' && previousTimeDescription !== 'evening') ||
+        (timeDescription === 'afternoon' && previousTimeDescription !== 'afternoon')
     );
 
-    // --- Part 3: Assemble Final Prompt Text ---
-    // The negative prompt is appended using a common syntax for image models.
-    const promptText = `${concise_prompt} --no ${negative_prompt}`;
+    // Versi RENA yang sedikit lebih ringkas
+    if (character.sessionContext?.outfit && !hasLocationChanged && !hasTimeChangedSignificantly) {
+        outfitDescription = character.sessionContext.outfit;
+        console.log(`Reusing session outfit: ${outfitDescription}`);
+    } else {
+        outfitDescription = await generateOutfitDescription(character, sessionLocation, sceneDescription);
+        console.log(`Generated new session outfit: ${outfitDescription}`);
+        
+        // Jika sessionContext belum ada, buat dulu objek kosongnya
+        if (!character.sessionContext) {
+            character.sessionContext = { hairstyle: '', timestamp: Date.now() }; 
+        }
+        // Sekarang, kita bisa dengan aman meng-update outfit-nya
+        character.sessionContext.outfit = outfitDescription;
+    }
 
-    // --- Part 4: Prepare Parts for API, including Reference Image ---
+    // --- Part 6: Build the new, structured prompt ---
+    const genderPronoun = character.characterProfile.basicInfo.gender === 'male' ? 'him' : 'her';
+    const genderNoun = character.characterProfile.basicInfo.gender === 'male' ? 'man' : 'woman';
+
+    const lightingNote = plan.lighting ? `, lighting: ${plan.lighting}` : '';
+
+    // Sanitize scene description to avoid duplicated constraints
+    const sanitizedScene = sceneDescription
+        .replace(/--\s*no phone visible[\s\S]*$/gi, '')
+        .replace(/no phone visible in the frame/gi, '')
+        .trim();
+
+    // Contextual bedtime look adjustments
+    const isBedroom = /bedroom|bed|pillow|duvet/i.test(sessionLocation);
+    const isNightTime = /night|evening/i.test(timeDescription);
+    const bedtimeLook = (isBedroom && isNightTime)
+        ? ` No makeup (bare skin, no visible eyeliner or eyeshadow), natural lips; hair loose and slightly messy (bedhead).`
+        : '';
+
+    let compositionInstruction = '';
+    let photographyStyleInstruction = ''; 
+
+    if (perspective === 'selfie') {
+        // HANYA fokus pada TEKNIK kamera HP, buang semua instruksi pose.
+        compositionInstruction = `Composition: an intimate first-person selfie taken with a front-facing smartphone camera; the framing captures from the chest up; phone is NOT visible in frame; creates a slight smartphone-lens distortion.`;
+        photographyStyleInstruction = `The image has an authentic, in-the-moment feel, as if spontaneously captured. Emphasize realistic details and natural lighting.`;
+    } else { 
+        // HANYA fokus pada TEKNIK kamera profesional, buang semua instruksi pose.
+        compositionInstruction = `Composition: shot from the user's direct viewpoint; framed tightly from the chest up; captured with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.`;
+        photographyStyleInstruction = `The image exhibits exceptional professional photography quality with tack-sharp focus on the eyes and a creamy bokeh background. Emphasize realistic details like visible pores and soft shadows.`;
+    }
+
+    const consistencyInstruction = `The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit should be ${outfitDescription}, maintained from the reference image unless the new context requires a change. Pose, expression, hairstyle, makeup, and immediate body condition (e.g., wet, sweaty, sleepy) should be dynamic and match the scene's context.`;
+
+    const promptText = (
+        `An ultra-realistic, high-detail, photographic quality image of ${basicInfo.name}, a ${age}-year-old ${raceOrDescent} ${genderNoun}${raceVisualDescription}. ` +
+        `Her hair is ${sessionHairstyle}. ` +
+        `She is wearing: ${outfitDescription}. ` +
+        `${bedtimeLook} ` +
+        `${sanitizedScene}. ` +
+        `The scene is a ${sessionLocation} during the ${timeDescription}${lightingNote}. ` +
+        `${compositionInstruction} ` +
+        `${photographyStyleInstruction} ` +
+        `${consistencyInstruction} ` +
+        `The visual setting must match this micro-location. ` +
+        `9:16 portrait orientation. ` +
+        `--style raw --no 3d, cgi, animation, illustration, anime, cartoon, digital art.`
+    ).trim().replace(/\s\s+/g, ' ');
+
     const parts: Part[] = [{ text: promptText }];
     let finalReferenceImage: { dataUrl: string, id: string } | null = null;
     let foundMimeType: string | undefined;
 
-    // Use session context to find the last reference image for consistency.
+    // Coba dapatkan referensi dari session context terlebih dahulu
     if (activeCharacterSessionContext?.lastReferenceImage) {
         const ref = activeCharacterSessionContext.lastReferenceImage;
-        if (ref.id === "0") { // "0" is the special ID for the avatar
+        if (ref.id === "0") {
+            // Jika ID "0", sumbernya pasti avatar.
             finalReferenceImage = { dataUrl: character.avatar, id: ref.id };
         } else {
+            // Cari di media gallery.
             const media = character.media.find(m => m.id === ref.id);
             if (media && typeof media.data === 'string') {
                 finalReferenceImage = { dataUrl: media.data, id: ref.id };
@@ -2922,16 +3153,17 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         }
     }
     
-    // Fallback to avatar if no session reference is found.
+    // Jika tidak ada referensi dari session, fallback ke avatar
     if (!finalReferenceImage) {
         console.warn("No valid session reference, falling back to avatar.");
         finalReferenceImage = { dataUrl: character.avatar, id: "0" };
     }
 
-    // Add the reference image to the parts array if it's valid.
+    // Ekstrak MIME type dari dataUrl yang sudah pasti.
     if (finalReferenceImage) {
         foundMimeType = finalReferenceImage.dataUrl.match(/data:(.*);base64,/)?.[1];
     
+        // Jurus pertahanan terakhir: Hanya tambahkan jika datanya valid.
         if (foundMimeType && foundMimeType.startsWith('image/')) {
             const base64Data = finalReferenceImage.dataUrl.split(',')[1];
             parts.push({
@@ -2940,9 +3172,10 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
                     data: base64Data,
                 },
             });
-            console.log(`Successfully added reference image (ID: ${finalReferenceImage.id}) for prompt generation.`);
+            console.log(`Successfully added reference image (ID: ${finalReferenceImage.id}) with MIME type: ${foundMimeType}`);
         } else {
             console.error(`Skipping reference image (ID: ${finalReferenceImage.id}) due to invalid MIME type: ${foundMimeType}`);
+            // Kita tidak mengirim referensi sama sekali jika tidak valid, mencegah error 400.
         }
     }
 
@@ -3054,7 +3287,7 @@ async function constructVideoPrompt(character: Character, userPrompt: string): P
     }
 
     // --- Generate Dynamic Outfit ---
-    const outfitDescription = getRandomElement(character.characterProfile.physicalStyle.clothingStyle);
+    const outfitDescription = await generateOutfitDescription(character, sessionLocation, userPrompt);
 
     const age = basicInfo.age;
 
@@ -3144,9 +3377,11 @@ async function handleGenerateImageRequest(
         } else {
             // ALUR OTOMATIS BARU TANPA KONFIRMASI
             statusEl.textContent = 'Directing scene...';
+            
+            const sceneDescription = await generateSceneDescription(character, originalPrompt, 'A neutral, happy mood.');
 
             statusEl.textContent = 'Constructing prompt...';
-            finalEnglishPrompt = await constructMediaPrompt(character, originalPrompt);
+            finalEnglishPrompt = await constructMediaPrompt(character, sceneDescription);
         }
 
         // --- Generate Image ---
@@ -4366,7 +4601,12 @@ async function handleGenerateContextualPrompt() {
     btn.disabled = true;
 
     try {
-        const contextualPrompt = await constructMediaPrompt(character, "a selfie based on the last conversation topic");
+        const lastMessageContent = character.chatHistory
+            .filter(m => m.sender === 'ai' && !m.content.includes('[GENERATE_'))
+            .pop()?.content || 'A neutral, happy mood.';
+        
+        const sceneDescription = await generateSceneDescription(character, "a selfie based on the last conversation topic", lastMessageContent);
+        const contextualPrompt = await constructMediaPrompt(character, sceneDescription);
         manualImageElements.prompt.value = (contextualPrompt.find(p => 'text' in p) as { text: string })?.text || '';
 
     } catch (error) {
