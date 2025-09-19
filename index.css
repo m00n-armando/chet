@@ -1401,7 +1401,7 @@ input:checked + .slider:before {
 #reference-image-preview, #edit-reference-image-preview {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
 }
 .remove-btn {
     position: absolute;
