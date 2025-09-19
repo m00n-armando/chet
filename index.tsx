@@ -1067,7 +1067,7 @@ async function translateTextToEnglish(text: string): Promise<string> {
 Text: "${text}"
 
 English Translation:`,
-            config: { temperature: 0.2 }, // Lower temperature for more literal translation
+            config: { temperature: 0.5 }, // Lower temperature for more literal translation
         });
         return response.text.trim();
     } catch (error) {
@@ -1142,7 +1142,7 @@ ${racePhysicalsString}
     contents: prompt,
     config: {
       ...generationConfig,
-      temperature: 2.0,
+      temperature: 1.5,
       responseMimeType: "application/json",
       responseSchema: CHARACTER_PROFILE_SCHEMA,
     },
@@ -2863,7 +2863,7 @@ async function refinePromptWithAI(originalPrompt: string): Promise<string> {
 Original Prompt: "${originalPrompt}"
 
 Refined Prompt:`,
-            config: { temperature: 0.5 },
+            config: { temperature: 1.0 },
         });
         return response.text.trim();
     } catch (error) {
@@ -2889,8 +2889,8 @@ You are a world class visual scene director and photographer. Your task is to ge
 
 **YOUR TASK:**
 In 1 concise paragraph, describe the entire visual scene. Your description MUST include:
-1.  **Character's State:** Their facial expression, mood, micro-actions/pose, and immediate body condition (e.g., sleepy eyes, damp hair, light sweat, relaxed posture).
-2.  **Camera & Composition:** The camera angle (e.g., low-angle, high-angle, eye-level, dutch angle), shot type (e.g., close-up on face, medium shot from the waist up), and framing. Be creative and cinematic.
+1.  **Character's State:** Their specific facial expression (e.g., "sleepy, almost shy grin", "tired but warm smile", "playful smirk"), mood, micro-actions/pose, and immediate body condition (e.g., damp hair, light sweat, bedhead).
+2.  **Camera & Composition:** The camera angle (e.g., "intimate medium close-up shot, framed slightly from above eye-level", "eye-level close-up"), shot type (e.g., "close-up on face", "medium shot from the waist up"), and framing. Be highly creative and cinematic, avoiding generic descriptions.
 
 **CRITICAL CONSTRAINTS:**
 - The final image prompt will already contain the character's core appearance (face, ethnicity), their outfit, and location. **DO NOT** describe these elements.
@@ -2947,8 +2947,8 @@ async function generateOutfitDescription(
         : '';
 
     const instructionForAI = previousOutfit
-        ? `2.  Analyze the **Previous Outfit**. If the new context is a direct continuation (e.g., same day, similar activity), modify the previous outfit slightly (e.g., add a jacket, take off a sweater). If the context has changed significantly (e.g., morning to night, home to a party), generate a new, appropriate outfit.`
-        : `2.  Based on the context, describe a fitting outfit. Be specific and visual.`;
+        ? `2.  Analyze the **Previous Outfit**. If the new context (location, time of day, action/scene) is a direct continuation or similar, subtly modify the previous outfit (e.g., add/remove a layer, change a small accessory, adjust color slightly). If the context has changed significantly (e.g., from sleeping to going out, from home to a formal event), generate a completely new, appropriate outfit that fits the new scene.`
+        : `2.  Based on the context, describe a fitting outfit. Be specific and visual, considering the character's general style but adapting it to the current scene.`;
 
     const prompt = `You are a world class fashion stylist and scene describer for an AI character. Your task is to describe a contextually appropriate outfit. The description must be concise and suitable for an image generation prompt.
  
@@ -3023,7 +3023,7 @@ JSON:`;
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: plannerPrompt,
-            config: { temperature: 0.3, responseMimeType: 'application/json' },
+            config: { temperature: 0.5, responseMimeType: 'application/json' },
         });
         const text = response.text?.trim();
         if (!text) throw new Error('Empty planner response');
@@ -3054,25 +3054,28 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
 
     // --- Part 2: Extract Core Details ---
     const age = basicInfo.age;
-    const [raceOrDescent, sessionHairstyle] = await Promise.all([
-        translateTextToEnglish(basicInfo.ethnicity),
-        translateTextToEnglish(`${physicalStyle.hairColor} ${getRandomElement(physicalStyle.hairStyle)}`)
-    ]);
+    const raceOrDescent = await translateTextToEnglish(basicInfo.ethnicity);
 
-    // --- Part 3: Session Context (Location & Hairstyle) ---
+    // --- Part 3: Session Context (Location, Hairstyle & Outfit) ---
     const lastMessageContent = character.chatHistory.filter(m => m.sender === 'ai' && m.type !== 'image').pop()?.content || 'A neutral, happy mood.';
     const sceneDescription = await generateSceneDescription(character, cleanedUserPrompt, lastMessageContent, perspective);
     const plan = await inferContextualLocation(character, sceneDescription, lastMessageContent);
     const sessionLocation = plan.location || basicInfo.cityOfResidence;
     const { timeDescription } = getContextualTime(new Date().toISOString(), character.timezone);
 
+    let currentSessionHairstyle = activeCharacterSessionContext?.hairstyle;
+    if (!currentSessionHairstyle || isFirstMessageInSession) { // If no hairstyle in context or new session, pick a random one
+        currentSessionHairstyle = await translateTextToEnglish(`${physicalStyle.hairColor} ${getRandomElement(physicalStyle.hairStyle)}`);
+    }
+    
     if (activeCharacterSessionContext) {
-        activeCharacterSessionContext.hairstyle = sessionHairstyle;
+        activeCharacterSessionContext.hairstyle = currentSessionHairstyle;
         activeCharacterSessionContext.timestamp = now;
         activeCharacterSessionContext.location = sessionLocation;
         activeCharacterSessionContext.timeDescription = timeDescription;
     } else {
-        activeCharacterSessionContext = { hairstyle: sessionHairstyle, timestamp: now, location: sessionLocation, timeDescription };
+        activeCharacterSessionContext = { hairstyle: currentSessionHairstyle, timestamp: now, location: sessionLocation, timeDescription };
+        character.sessionContext = activeCharacterSessionContext; // Initialize character.sessionContext here
     }
 
     // --- Part 4: Race Visual Characteristics ---
@@ -3090,7 +3093,7 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     console.log(`Determined session outfit: ${outfitDescription}`);
     // Update the session context with the newly determined outfit.
     if (!character.sessionContext) {
-        character.sessionContext = { hairstyle: sessionHairstyle, timestamp: now };
+        character.sessionContext = { hairstyle: currentSessionHairstyle, timestamp: now, location: sessionLocation, timeDescription };
     }
     character.sessionContext.outfit = outfitDescription;
 
@@ -3122,7 +3125,7 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     if (referenceImages.length > 1) {
         consistencyInstruction = `CRITICAL INSTRUCTION: Use BOTH reference images provided. The FIRST image is the character's avatar; use it as the absolute ground-truth for the character's face, body, and physical identity. The SECOND image provides the context for the current scene; reuse its outfit, general pose, and lighting. The character's final face MUST match the FIRST image (the avatar), NOT the second.`;
     } else {
-        consistencyInstruction = `The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit should be ${outfitDescription}. Pose, expression, hairstyle, makeup, and immediate body condition should be dynamic and match the scene's context.`;
+        consistencyInstruction = `The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit should be ${outfitDescription}. CRITICAL INSTRUCTION: Pose, expression, hairstyle, makeup, and immediate body condition MUST be dynamic and match the scene's context, ensuring visual variety in each generation.`;
     }
 
     const genderNoun = basicInfo.gender === 'male' ? 'man' : 'woman';
@@ -3132,7 +3135,7 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     
     const promptText = (
         `An ultra-realistic, high-detail, photographic quality image of ${basicInfo.name}, a ${age}-year-old ${raceOrDescent} ${genderNoun}. ` +
-        `Her hair is ${sessionHairstyle}. ` +
+        `Her hair is ${currentSessionHairstyle}. ` + // Use the potentially updated hairstyle
         `She is wearing: ${outfitDescription}. ` +
         `${bedtimeLook} ` +
         `${sceneDescription}. ` + // The new dynamic scene description replaces the old static parts.
