@@ -4,15 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// ---CHET v.2.2.0---
+// ---CHET v.2.2.1---
+// Changelog v.2.2.1:
+// - Replace Ghost race with Dragonkin.
 // Changelog v.2.2.0:
 // - Implement vite-plugin-pwa.
-// Changelog v.2.1.7:
-// - Updated `UserProfile` interface to store `chatTemperature` and `chatSafetyLevel`.
-// - Modified `updateSettingsUI` to reflect saved chat temperature and safety level.
-// - Added event listeners for chat temperature and safety level inputs to update user preferences.
-// - Applied user-defined chat temperature and safety level to new chat sessions.
-
+// - Add markdown button.
 
 import { GoogleGenAI, Type, Chat, HarmBlockThreshold, HarmCategory, GenerateContentResponse, Modality, Part } from "@google/genai";
 import { saveAppState, loadAppState, blobToBase64, base64ToBlob } from './storageServices';
@@ -24,7 +21,7 @@ import { injectSpeedInsights } from '@vercel/speed-insights';
 import SplashScreen from './SplashScreen'; // Import the SplashScreen component
 import packageJson from './package.json'; // Import package.json for version
 
-const APP_VERSION = "2.2.0";
+const APP_VERSION = "2.2.1";
  
  // --- TYPES AND INTERFACES ---
 interface UserProfile {
@@ -210,9 +207,90 @@ const ROLE_TO_INTIMACY_MAP: Record<string, number> = {
     "boss": 10,
     "employee": 10,
     "teacher": 15,
-    "student": 15
+ "student": 15
 };
 
+// New interface for race physical characteristics
+interface RacePhysicalCharacteristics {
+  skin: string;
+  eyes: string;
+  hair: string;
+  features: string; // Distinctive features
+  build: string; // Body build/type
+}
+
+const racePhysicals: Record<string, RacePhysicalCharacteristics> = {
+  "vampire": {
+    skin: "Pale, flawless skin, often cool to the touch.",
+    eyes: "Intense eye colors (often red, gold, or violet), with a sharp and captivating gaze.",
+    hair: "Hair color that contrasts with the skin (often jet black or silvery white), always looking healthy and lustrous.",
+    features: "Sharp, aristocratic facial features, lips often naturally red. Sometimes have slightly elongated canines.",
+    build: "Slender, elegant, and agile."
+  },
+  "demon": {
+    skin: "Skin may have faint patterns or marks that glow dimly in the dark, sometimes with unusual colors (e.g., grayish or reddish).",
+    eyes: "Often have glowing colors like embers (red, orange) or deep, solid dark colors with no visible sclera. Pupils can be vertical.",
+    hair: "Dark hair colors (black, maroon) or fiery colors. Sometimes adorned with small horns.",
+    features: "Strong and attractive facial features, often with a dangerously alluring aura. Sometimes have slightly pointed nails.",
+    build: "Athletic and strong, or slender and seductive."
+  },
+  "angel": {
+    skin: "Skin that seems to glow from within, flawless and warm to the touch.",
+    eyes: "Clear and calming eye colors (sky blue, emerald green, gold), radiating kindness and wisdom.",
+    hair: "Bright hair colors (golden blonde, silver) or other soft shades, often appearing to shimmer.",
+    features: "Harmonious and ethereally beautiful facial features. Sometimes have a faint birthmark shaped like a wing or a holy symbol.",
+    build: "Stately and graceful, exuding an aura of tranquility."
+  },
+  "elf": {
+    skin: "Smooth, youthful skin, often with a healthy, natural glow.",
+    eyes: "Large, expressive eyes with nature-inspired colors (leaf green, wood brown, lake blue).",
+    hair: "Natural hair colors (brown, blonde, black), always long, straight, and well-kept.",
+    features: "Slender and elegant facial features, with slightly pointed ears as their main characteristic.",
+    build: "Slim, agile, and graceful."
+  },
+  "orc": {
+    skin: "Thicker, tougher skin, often with a greenish or grayish hue, sometimes with scars that show strength.",
+    eyes: "Sharp and vigilant eyes, showing intelligence and wildness.",
+    hair: "Coarse, thick hair, often styled practically (braided, tied back).",
+    features: "A strong jaw and defined facial features. Sometimes have slightly protruding lower canines.",
+    build: "Muscular, strong, and sturdy."
+  },
+  "fairy": {
+    skin: "Skin with a subtle, pearl-like sheen, can have faint pastel colors.",
+    eyes: "Large, curious eyes with unusual, bright colors (violet, pink, electric blue).",
+    hair: "Bright and unusual hair colors, often adorned with natural elements like flowers or dew.",
+    features: "Dainty and delicate facial features. Sometimes have small, transparent wings on their back that are only visible when they choose.",
+    build: "Small, slender, and very light."
+  },
+  "werewolf": {
+    skin: "Healthy-looking and slightly rugged skin, indicating an active lifestyle.",
+    eyes: "Sharp, wild eyes, often golden-yellow or amber, especially when emotions are high.",
+    hair: "Thick and slightly unruly hair, showing their wild side.",
+    features: "Strong and slightly 'animalistic' facial features. Extremely sharp senses of smell and hearing.",
+    build: "Athletic, strong, and muscular."
+  },
+  "dragonkin": {
+    skin: "Very tough skin, sometimes with a few patches of fine, shimmering scales on areas like the back, shoulders, or temples.",
+    eyes: "Eyes with vertical, reptilian pupils, often in metallic or jewel-like colors (gold, silver, emerald).",
+    hair: "Striking hair colors, often with gradients like fire or ice.",
+    features: "Sharp and majestic facial features, exuding an aura of ancient power and pride.",
+    build: "Tall, strong, and impressive."
+  },
+  "beast human": {
+    skin: "Normal human skin, but may have faint marks or patterns resembling their totem animal (e.g., stripes, spots).",
+    eyes: "Eyes that reflect their animal nature (e.g., sharp vision like an eagle, a predatory gaze like a cat).",
+    hair: "Can have a texture or color that reflects their animal (e.g., a thick mane like a lion, striped hair).",
+    features: "Possess one or two prominent animal features, such as cat ears, a fox tail, or retractable claws.",
+    build: "Varies depending on their animal aspect (e.g., agile like a cat, strong like a bear)."
+  },
+  "human": {
+    skin: "Diverse skin colors and textures, showing adaptability to various environments.",
+    eyes: "A wide range of eye colors, indicating genetic diversity.",
+    hair: "A variety of hair colors and styles, showing creativity and individuality.",
+    features: "Highly varied facial features; no two humans are exactly alike.",
+    build: "Extremely varied, from thin to stout, short to tall, showing adaptability to different lifestyles."
+  }
+};
 
 interface PowerSystem {
  name: string;
@@ -231,123 +309,123 @@ interface PowerSystem {
 const racePowerSystems: Record<string, PowerSystem> = {
  "vampire": {
    name: "Blood Siphon",
-   description: "Kemampuan untuk menyerap energi kehidupan dari makhluk lain melalui darah, meningkatkan kekuatan fisik dan regenerasi.",
-   trigger: "Saat merasakan aroma darah segar atau dalam kondisi lapar yang ekstrem.",
-   strengthensWhen: "Mengkonsumsi darah dari target yang kuat atau saat berada di bawah gerhana bulan.",
-   weakensWhen: "Terkena sinar matahari langsung, kekurangan darah, atau saat berada di dekat simbol suci yang kuat.",
-   outOfControlWhen: "Saat 'Blood Frenzy' (rasa lapar tak terkendali) mengambil alih, menyerang siapapun tanpa pandang bulu untuk memuaskan dahaga.",
-   lowEffect: "Mata berkilat merah, sedikit peningkatan kecepatan.",
-   midEffect: "Gigi taring memanjang, kekuatan fisik meningkat, regenerasi luka kecil.",
-   highEffect: "Transformasi parsial (cakar, sayap kelelawar), kecepatan dan kekuatan luar biasa, penyembuhan cepat.",
-   maxEffect: "Mengalami 'Blood Frenzy', menyerang tanpa pandang bulu, kehilangan kontrol diri sepenuhnya."
+   description: "The ability to absorb life energy from other beings through blood, enhancing physical strength and regeneration.",
+   trigger: "When smelling fresh blood or in a state of extreme hunger.",
+   strengthensWhen: "Consuming blood from a powerful target or during a lunar eclipse.",
+   weakensWhen: "Exposed to direct sunlight, lack of blood, or near a strong holy symbol.",
+   outOfControlWhen: "When 'Blood Frenzy' (uncontrollable hunger) takes over, attacking anyone indiscriminately to quench the thirst.",
+   lowEffect: "Eyes glint red, slight increase in speed.",
+   midEffect: "Fangs elongate, physical strength increases, minor wound regeneration.",
+   highEffect: "Partial transformation (claws, bat-like wings), incredible speed and strength, rapid healing.",
+   maxEffect: "Enters a 'Blood Frenzy,' attacking indiscriminately, complete loss of self-control."
  },
  "demon": {
    name: "Infernal Contract",
-   description: "Kemampuan untuk memanipulasi bayangan dan api neraka, serta membuat perjanjian yang mengikat dengan makhluk lain.",
-   trigger: "Saat berada dalam kegelapan total atau saat membuat sebuah perjanjian yang signifikan.",
-   strengthensWhen: "Di lingkungan yang panas seperti dekat gunung berapi, atau saat perjanjian yang dibuat memberinya keuntungan besar.",
-   weakensWhen: "Terkena air suci atau berada di tanah yang disucikan.",
-   outOfControlWhen: "Saat emosi kebencian atau amarah memuncak, api neraka bisa membakar sekelilingnya tanpa kontrol.",
-   lowEffect: "Mata bersinar merah, aura panas samar.",
-   midEffect: "Bayangan bergerak sendiri, api kecil muncul di tangan, suara menjadi lebih dalam.",
-   highEffect: "Kontrol bayangan yang kuat, semburan api neraka, kemampuan membuat ilusi.",
-   maxEffect: "Api neraka membakar sekeliling, kehilangan kendali emosi, menyerang dengan amarah."
+   description: "The ability to manipulate shadows and hellfire, as well as make binding contracts with other beings.",
+   trigger: "When in total darkness or when making a significant pact.",
+   strengthensWhen: "In hot environments like near a volcano, or when a contract made provides a great advantage.",
+   weakensWhen: "Exposed to holy water or on consecrated ground.",
+   outOfControlWhen: "When emotions of hatred or anger peak, hellfire can burn the surroundings uncontrollably.",
+   lowEffect: "Eyes glow red, faint aura of heat.",
+   midEffect: "Shadows move on their own, small flames appear in hand, voice deepens.",
+   highEffect: "Powerful shadow control, bursts of hellfire, ability to create illusions.",
+   maxEffect: "Hellfire engulfs the area, loss of emotional control, attacks with rage."
  },
  "angel": {
    name: "Celestial Radiance",
-   description: "Kemampuan untuk memancarkan cahaya suci yang dapat menyembuhkan sekutu dan menyakiti makhluk kegelapan.",
-   trigger: "Saat melindungi seseorang yang tidak bersalah atau saat berdoa dengan tulus.",
-   strengthensWhen: "Berada di tempat suci (gereja, kuil) atau saat pengorbanan diri untuk kebaikan.",
-   weakensWhen: "Saat melakukan tindakan yang dianggap 'berdosa' atau saat kehilangan keyakinan.",
-   outOfControlWhen: "Saat merasakan 'Divine Wrath' (kemarahan suci) terhadap kejahatan yang luar biasa, cahayanya bisa menjadi penghakiman yang membabi buta.",
-   lowEffect: "Aura cahaya samar, perasaan damai di sekitar.",
-   midEffect: "Cahaya menyembuhkan luka kecil, dapat mengusir makhluk kegelapan lemah.",
-   highEffect: "Sayap cahaya muncul, penyembuhan cepat, serangan cahaya yang kuat.",
-   maxEffect: "Cahaya menyilaukan dan membakar, menyerang tanpa pandang bulu, kehilangan kendali atas kemarahan suci."
+   description: "The ability to emit holy light that can heal allies and harm creatures of darkness.",
+   trigger: "When protecting an innocent or praying sincerely.",
+   strengthensWhen: "In a holy place (church, temple) or when making a self-sacrifice for the greater good.",
+   weakensWhen: "Committing an act considered 'sinful' or losing faith.",
+   outOfControlWhen: "When feeling 'Divine Wrath' towards an extraordinary evil, the light can become an indiscriminate judgment.",
+   lowEffect: "Faint aura of light, a feeling of peace in the vicinity.",
+   midEffect: "Light heals minor wounds, can repel weak creatures of darkness.",
+   highEffect: "Wings of light appear, rapid healing, powerful light attacks.",
+   maxEffect: "Blinding and burning light, attacks indiscriminately, loss of control over holy wrath."
  },
  "elf": {
    name: "Nature's Grasp",
-   description: "Kemampuan untuk berkomunikasi dan memanipulasi elemen alam seperti tumbuhan dan hewan.",
-   trigger: "Saat berada di alam liar atau merasakan emosi yang kuat terhadap alam.",
-   strengthensWhen: "Di bawah cahaya bulan purnama, atau saat melindungi hutan/makhluk hidup.",
-   weakensWhen: "Di lingkungan tandus, kota industri, atau saat koneksi dengan alam terputus.",
-   outOfControlWhen: "Saat merasakan amarah yang luar biasa karena perusakan alam, kekuatan bisa 'meluap' dan merusak tanpa pandang bulu.",
-   lowEffect: "Tumbuhan di sekitar sedikit bergerak, hewan mendekat.",
-   midEffect: "Dapat menumbuhkan tanaman kecil, mengendalikan akar, berbicara dengan hewan.",
-   highEffect: "Memanipulasi tumbuhan besar, memanggil hewan, merasakan kehidupan di sekitar.",
-   maxEffect: "Tumbuhan tumbuh liar dan menyerang, kehilangan kendali atas amarah terhadap perusakan alam."
+   description: "The ability to communicate with and manipulate natural elements like plants and animals.",
+   trigger: "When in the wild or feeling a strong emotion towards nature.",
+   strengthensWhen: "Under the light of a full moon, or when protecting a forest/living creatures.",
+   weakensWhen: "In barren environments, industrial cities, or when the connection to nature is severed.",
+   outOfControlWhen: "When feeling immense anger due to the destruction of nature, the power can 'overflow' and destroy indiscriminately.",
+   lowEffect: "Nearby plants move slightly, animals draw near.",
+   midEffect: "Can grow small plants, control roots, speak with animals.",
+   highEffect: "Manipulate large plants, summon animals, sense life in the surroundings.",
+   maxEffect: "Plants grow wild and attack, loss of control due to rage against the destruction of nature."
  },
  "orc": {
    name: "Berserker's Rage",
-   description: "Meningkatkan kekuatan fisik dan daya tahan secara drastis dengan mengorbankan kesadaran.",
-   trigger: "Saat terluka parah atau melihat rekan seperjuangannya jatuh.",
-   strengthensWhen: "Semakin banyak luka yang diterima, semakin kuat amarahnya.",
-   weakensWhen: "Saat merasa ragu, takut, atau setelah amarahnya reda (menyebabkan kelelahan ekstrem).",
-   outOfControlWhen: "Jika amarah mencapai puncaknya, mereka tidak bisa membedakan kawan dan lawan, menyerang apapun yang bergerak hingga tenaganya habis.",
-   lowEffect: "Otot menegang, sedikit peningkatan kekuatan.",
-   midEffect: "Mata merah menyala, kekuatan fisik dan daya tahan meningkat signifikan.",
-   highEffect: "Transformasi parsial (kulit mengeras, taring), kekuatan dan daya tahan luar biasa, tidak merasakan sakit.",
-   maxEffect: "Mengalami 'Berserker's Rage', menyerang tanpa pandang bulu, kehilangan kesadaran."
+   description: "Drastically increases physical strength and endurance by sacrificing consciousness.",
+   trigger: "When severely injured or seeing a comrade fall.",
+   strengthensWhen: "The more wounds received, the stronger the rage.",
+   weakensWhen: "Feeling doubt, fear, or after the rage subsides (causing extreme fatigue).",
+   outOfControlWhen: "If the rage reaches its peak, they cannot distinguish friend from foe, attacking anything that moves until their energy is depleted.",
+   lowEffect: "Muscles tense, slight increase in strength.",
+   midEffect: "Eyes glow red, significant increase in physical strength and endurance.",
+   highEffect: "Partial transformation (hardened skin, tusks), extraordinary strength and endurance, feels no pain.",
+   maxEffect: "Enters 'Berserker's Rage,' attacking indiscriminately, loss of consciousness."
  },
  "fairy": {
    name: "Mischievous Veil",
-   description: "Kemampuan untuk menciptakan ilusi, menjadi tidak terlihat, dan memanipulasi emosi orang lain secara halus.",
-   trigger: "Saat merasa iseng, terancam, atau ingin bermain-main.",
-   strengthensWhen: "Di tempat yang penuh dengan tawa dan kegembiraan, atau saat berhasil melakukan tipuan yang cerdik.",
-   weakensWhen: "Terkena 'cold iron' (besi murni) atau saat berada di lingkungan yang penuh kesedihan.",
-   outOfControlWhen: "Saat merasa panik atau ketakutan yang ekstrem, ilusi yang diciptakan menjadi nyata dan berbahaya bagi semua orang di sekitarnya.",
-   lowEffect: "Kilauan cahaya kecil, perasaan senang atau gelisah samar.",
-   midEffect: "Dapat membuat ilusi sederhana, menjadi tidak terlihat sebagian, mempengaruhi emosi ringan.",
-   highEffect: "Ilusi kompleks, tidak terlihat sepenuhnya, manipulasi emosi yang kuat.",
-   maxEffect: "Ilusi menjadi nyata dan berbahaya, kehilangan kendali karena panik atau ketakutan."
+   description: "The ability to create illusions, become invisible, and subtly manipulate the emotions of others.",
+   trigger: "When feeling mischievous, threatened, or wanting to play.",
+   strengthensWhen: "In a place full of laughter and joy, or after successfully pulling off a clever trick.",
+   weakensWhen: "Exposed to 'cold iron' (pure iron) or in an environment full of sadness.",
+   outOfControlWhen: "When feeling extreme panic or fear, the illusions created become real and dangerous to everyone nearby.",
+   lowEffect: "Small sparkles of light, faint feelings of happiness or unease.",
+   midEffect: "Can create simple illusions, become partially invisible, influence minor emotions.",
+   highEffect: "Complex illusions, complete invisibility, strong emotional manipulation.",
+   maxEffect: "Illusions become real and dangerous, loss of control due to panic or fear."
  },
  "werewolf": {
    name: "Lunar Instinct",
-   description: "Transformasi menjadi makhluk serigala buas dengan kekuatan, kecepatan, dan indra yang super.",
-   trigger: "Secara paksa saat bulan purnama, atau secara sadar saat adrenalin memuncak (pertarungan, bahaya).",
-   strengthensWhen: "Saat bulan purnama berada di puncaknya, atau saat bertarung dalam kelompok (pack).",
-   weakensWhen: "Terkena perak (silver), atau saat berada dalam kondisi fisik yang lemah sebelum transformasi.",
-   outOfControlWhen: "Transformasi pertama kali atau saat terluka parah oleh perak, menyebabkan hilangnya kesadaran dan menyerang apapun di dekatnya.",
-   lowEffect: "Indra penciuman dan pendengaran meningkat, mata berkilat kuning.",
-   midEffect: "Cakar dan gigi memanjang, kekuatan dan kecepatan meningkat, regenerasi.",
-   highEffect: "Transformasi parsial (bulu, moncong), kekuatan, kecepatan, dan indra super.",
-   maxEffect: "Transformasi penuh, kehilangan kesadaran, menyerang tanpa pandang bulu."
+   description: "Transformation into a savage wolf creature with superhuman strength, speed, and senses.",
+   trigger: "Forcibly during a full moon, or consciously when adrenaline is high (combat, danger).",
+   strengthensWhen: "When the full moon is at its zenith, or when fighting in a pack.",
+   weakensWhen: "Exposed to silver, or in a weak physical state before transformation.",
+   outOfControlWhen: "During the first transformation or when severely wounded by silver, causing a loss of consciousness and attacking anything nearby.",
+   lowEffect: "Senses of smell and hearing are heightened, eyes glint yellow.",
+   midEffect: "Claws and teeth elongate, strength and speed increase, regeneration.",
+   highEffect: "Partial transformation (fur, snout), superhuman strength, speed, and senses.",
+   maxEffect: "Full transformation, loss of consciousness, attacks indiscriminately."
  },
- "ghost": {
-   name: "Ethereal Phase",
-   description: "Kemampuan untuk menembus benda padat, menjadi tidak terlihat, dan berinteraksi dengan dunia roh.",
-   trigger: "Saat merasakan emosi yang kuat terkait dengan kematiannya atau saat berada di dekat 'bekas' miliknya di dunia fisik.",
-   strengthensWhen: "Di tempat-tempat tua yang penuh dengan energi spiritual atau saat malam hari.",
-   weakensWhen: "Di tempat yang baru dibangun atau saat 'urusan yang belum selesai' (unfinished business) mulai terselesaikan.",
-   outOfControlWhen: "Saat mengingat kembali trauma kematiannya, bisa menciptakan fenomena poltergeist yang merusak lingkungan sekitar.",
-   lowEffect: "Merasa dingin di sekitar, benda kecil bergerak sendiri.",
-   midEffect: "Dapat menembus benda tipis, menjadi tidak terlihat samar, mendengar suara roh.",
-   highEffect: "Menembus benda padat, tidak terlihat sepenuhnya, memanipulasi objek dengan kuat.",
-   maxEffect: "Menciptakan fenomena poltergeist yang merusak, kehilangan kendali karena trauma."
+ "dragonkin": {
+   name: "Draconic Ascension",
+   description: "The ability to manifest draconic powers, such as elemental breath (fire/ice/lightning), protective scales, and superior physical strength.",
+   trigger: "When feeling strong emotions like anger or the will to protect, or near an ancient dragon artifact.",
+   strengthensWhen: "Absorbing elemental energy corresponding to their lineage or at the peak of a high mountain.",
+   weakensWhen: "Exposed to magic specifically designed to counter dragons or in a very cold environment (if of a fire dragon lineage).",
+   outOfControlWhen: "When 'Dragon's Fury' takes over, their elemental breath can explode uncontrollably, destroying the surroundings.",
+   lowEffect: "Eyes change to be reptilian, skin feels warmer/cooler.",
+   midEffect: "Dragon scales appear on parts of the body, weak elemental breath can be expelled.",
+   highEffect: "Partial transformation (small wings, claws), powerful elemental breath, drastically increased physical strength.",
+   maxEffect: "Enters 'Dragon's Fury,' destructive elemental breath, loss of self-control."
  },
  "beast human": {
    name: "Primal Aspect",
-   description: "Kemampuan untuk memanifestasikan sebagian atau seluruh aspek hewan dalam dirinya (misal: cakar, kecepatan cheetah, penglihatan elang).",
-   trigger: "Saat insting hewannya mengambil alih karena bahaya, lapar, atau hasrat.",
-   strengthensWhen: "Berada di habitat alami hewan yang menjadi aspeknya.",
-   weakensWhen: "Di lingkungan yang sangat artifisial dan jauh dari alam, seperti kota metropolitan yang padat.",
-   outOfControlWhen: "Saat terlalu lama menggunakan aspek hewannya, kepribadian manusianya bisa terkikis dan menjadi buas sepenuhnya.",
-   lowEffect: "Indra hewan meningkat, sedikit perubahan fisik (misal: mata lebih tajam).",
-   midEffect: "Cakar atau taring muncul, kecepatan atau kekuatan meningkat, regenerasi ringan.",
-   highEffect: "Transformasi parsial (misal: bulu, telinga hewan), kemampuan hewan yang kuat.",
-   maxEffect: "Transformasi penuh menjadi buas, kehilangan kepribadian manusia."
+   description: "The ability to manifest partial or full aspects of their animal within themselves (e.g., claws, cheetah's speed, eagle's vision).",
+   trigger: "When their animal instinct takes over due to danger, hunger, or desire.",
+   strengthensWhen: "In the natural habitat of their animal aspect.",
+   weakensWhen: "In a highly artificial environment far from nature, like a dense metropolis.",
+   outOfControlWhen: "When using their animal aspect for too long, their human personality can be eroded, becoming fully feral.",
+   lowEffect: "Animal senses are heightened, minor physical changes (e.g., sharper eyes).",
+   midEffect: "Claws or fangs appear, speed or strength increases, minor regeneration.",
+   highEffect: "Partial transformation (e.g., fur, animal ears), powerful animal abilities.",
+   maxEffect: "Full feral transformation, loss of human personality."
  },
  "human": {
    name: "Adaptive Will",
-   description: "Kemampuan untuk beradaptasi dengan cepat terhadap situasi apapun, bahkan menyerap atau meniru sebagian kecil kekuatan lawan.",
-   trigger: "Dalam situasi yang mengancam nyawa atau saat menghadapi tantangan yang belum pernah dialami.",
-   strengthensWhen: "Terus-menerus mendorong batas diri dan menghadapi berbagai macam ancaman.",
-   weakensWhen: "Dalam keadaan stagnan, nyaman, dan tanpa tantangan.",
-   outOfControlWhen: "Saat terlalu banyak menyerap energi atau kekuatan yang berbeda dalam waktu singkat, bisa menyebabkan ketidakstabilan fisik dan mental.",
-   lowEffect: "Peningkatan fokus dan refleks, belajar cepat.",
-   midEffect: "Dapat meniru gerakan atau teknik sederhana, daya tahan meningkat.",
-   highEffect: "Menyerap sebagian kecil kekuatan lawan, adaptasi fisik yang cepat.",
-   maxEffect: "Menyerap terlalu banyak kekuatan, menyebabkan ketidakstabilan fisik dan mental."
+   description: "The ability to quickly adapt to any situation, even absorbing or mimicking a small fraction of an opponent's power.",
+   trigger: "In a life-threatening situation or when facing a challenge never experienced before.",
+   strengthensWhen: "Continuously pushing their limits and facing a variety of threats.",
+   weakensWhen: "In a stagnant, comfortable state with no challenges.",
+   outOfControlWhen: "Absorbing too many different energies or powers in a short time can cause physical and mental instability.",
+   lowEffect: "Increased focus and reflexes, rapid learning.",
+   midEffect: "Can mimic simple movements or techniques, increased endurance.",
+   highEffect: "Absorbs a small fraction of an opponent's power, rapid physical adaptation.",
+   maxEffect: "Absorbs too much power, causing physical and mental instability."
  },
 };
 
@@ -1969,41 +2047,16 @@ async function constructAvatarPrompt(characterProfile: CharacterProfile): Promis
     let raceDescription = '';
     if (isFantasyRace) {
         const race = basicInfo.race.toLowerCase();
-        switch (race) {
-            case 'vampire':
-                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has an aristocratic bearing with exceptionally pale, flawless skin that seems almost luminescent. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes have an intense, piercing quality with subtle crimson undertones. Sharp, elegant facial features give ${genderPronoun} an otherworldly, timeless beauty.`;
-                break;
-            case 'demon':
-                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} possesses striking, angular features with skin that has a subtle iridescent quality. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes have a deep, mysterious intensity that seems to hold ancient wisdom. There's an aura of controlled power and supernatural grace about ${genderPronoun}.`;
-                break;
-            case 'angel':
-                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has ethereally beautiful features with skin that glows with an inner light. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are strikingly clear and luminous, radiating compassion and strength. There's a serene, otherworldly elegance to ${genderPronoun === 'him' ? 'his' : 'her'} presence.`;
-                break;
-            case 'elf':
-                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has elongated, graceful features with exceptionally smooth, youthful skin. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are large and expressive with an almost hypnotic clarity. There's an elegant, timeless quality to ${genderPronoun === 'him' ? 'his' : 'her'} appearance that suggests ancient wisdom.`;
-                break;
-            case 'orc':
-                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has strong, rugged features with tough, weathered skin that speaks of resilience. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are sharp and intelligent, showing deep determination. There's a powerful, imposing presence about ${genderPronoun} that commands respect.`;
-                break;
-            case 'fairy':
-                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has delicate, finely sculpted features with skin that has a subtle, pearlescent sheen. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are large and enchanting with an otherworldly sparkle. There's a graceful, magical quality to ${genderPronoun === 'him' ? 'his' : 'her'} appearance.`;
-                break;
-            case 'werewolf':
-                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has strong, athletic features with skin that has a healthy, rugged vitality. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes have a wild, intense quality that suggests hidden depths. There's a primal, powerful energy about ${genderPronoun} that speaks of untamed strength.`;
-                break;
-            case 'ghost':
-                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has ethereal, almost translucent features with skin that has a pale, otherworldly quality. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes have a haunting, distant gaze that seems to look beyond the physical world. There's a mysterious, spectral elegance about ${genderPronoun}.`;
-                break;
-            case 'beast human':
-                raceDescription = ` ${genderPronoun === 'him' ? 'He' : 'She'} has striking hybrid features that blend human and animal characteristics seamlessly. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes have an animal-like intensity and intelligence. There's a wild, untamed beauty about ${genderPronoun} that suggests enhanced physical abilities.`;
-                break;
-            default:
-                raceDescription = ` ${genderPronoun === 'him' ? 'His' : 'Her'} race is ${basicInfo.race}, giving ${genderPronoun} unique supernatural characteristics.`;
+        const physicals = racePhysicals[race];
+        if (physicals) {
+            raceDescription = ` As a ${race}, ${genderPronoun === 'him' ? 'he' : 'she'} has distinct features: ${physicals.skin} ${physicals.eyes} ${physicals.features}`;
+        } else {
+            raceDescription = ` ${genderPronoun === 'him' ? 'His' : 'Her'} race is ${basicInfo.race}, giving ${genderPronoun} unique supernatural characteristics.`;
         }
     }
 
     const prompt = `
-    An ultra-realistic, professional portrait of a ${age}-year-old ${raceOrDescent} ${genderNoun}, ${genderPronoun === 'him' ? 'his' : 'her'} race / ${genderPronoun === 'him' ? 'he' : 'she'} is ${basicInfo.race}, looking directly at the camera with an expression that matches ${genderPronoun === 'him' ? 'his' : 'her'} '${basicInfo.aura}' aura. Shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.
+    An ultra-realistic, professional portrait of a ${age}-year-old ${raceOrDescent} ${genderNoun}, looking directly at the camera with an expression that matches ${genderPronoun === 'him' ? 'his' : 'her'} '${basicInfo.aura}' aura. ${raceDescription}. Shot with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.
 ${genderPronoun === 'him' ? 'His' : 'Her'} skin is ${physicalStyle.skinTone} with realistic texture. ${genderPronoun === 'him' ? 'His' : 'Her'} ${hair} is styled professionally. ${genderPronoun === 'him' ? 'His' : 'Her'} eyes are ${eyes}. 
 ${genderPronoun === 'him' ? 'His' : 'Her'} makeup is ${makeup} style. ${genderPronoun === 'him' ? 'He' : 'She'} wears ${clothing}, ensuring a clear view of ${genderPronoun === 'him' ? 'his' : 'her'} neck, shoulders and cleavage. ${genderPronoun === 'him' ? 'He' : 'She'} wears fashionable jewelry including prominent necklace, accentuating ${genderPronoun === 'him' ? 'his' : 'her'} chic style.
 Half-body composition from hips up, emphasizing ${genderPronoun === 'him' ? 'his' : 'her'} ${basicInfo.aura} expression and pose, facing forward. The overall tone is cinematic and high-fashion. Studio lighting with softboxes creates perfect illumination.
@@ -3022,34 +3075,9 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     let raceVisualDescription = '';
     if (basicInfo.race && basicInfo.race.toLowerCase() !== 'human') {
         const race = basicInfo.race.toLowerCase();
-        switch (race) {
-            case 'vampire':
-                raceVisualDescription = ' with pale skin and elegant features';
-                break;
-            case 'demon':
-                raceVisualDescription = ' with strong features and intense eyes';
-                break;
-            case 'angel':
-                raceVisualDescription = ' with beautiful features and clear eyes';
-                break;
-            case 'elf':
-                raceVisualDescription = ' with graceful features and expressive eyes';
-                break;
-            case 'orc':
-                raceVisualDescription = ' with strong features and intelligent eyes';
-                break;
-            case 'fairy':
-                raceVisualDescription = ' with delicate features and enchanting eyes';
-                break;
-            case 'werewolf':
-                raceVisualDescription = ' with athletic features and intense eyes';
-                break;
-            case 'ghost':
-                raceVisualDescription = ' with pale skin and mysterious gaze';
-                break;
-            case 'beast human':
-                raceVisualDescription = ' with striking features and intelligent eyes';
-                break;
+        const physicals = racePhysicals[race];
+        if (physicals) {
+            raceVisualDescription = ` As a ${race}, ${character.characterProfile.basicInfo.gender === 'male' ? 'he' : 'she'} has distinct features: ${physicals.skin} ${physicals.eyes} ${physicals.features}`;
         }
     }
 
@@ -3275,34 +3303,9 @@ async function constructVideoPrompt(character: Character, userPrompt: string): P
     let raceVisualDescription = '';
     if (basicInfo.race && basicInfo.race.toLowerCase() !== 'human') {
         const race = basicInfo.race.toLowerCase();
-        switch (race) {
-            case 'vampire':
-                raceVisualDescription = ' with aristocratic bearing, exceptionally pale flawless skin, intense piercing eyes with crimson undertones, sharp elegant facial features, timeless beauty';
-                break;
-            case 'demon':
-                raceVisualDescription = ' with striking angular features, subtle iridescent skin quality, deep mysterious intense eyes, aura of controlled power, supernatural grace';
-                break;
-            case 'angel':
-                raceVisualDescription = ' with ethereally beautiful features, skin glowing with inner light, strikingly clear luminous eyes, serene otherworldly elegance';
-                break;
-            case 'elf':
-                raceVisualDescription = ' with elongated graceful features, exceptionally smooth youthful skin, large expressive hypnotic eyes, elegant timeless quality';
-                break;
-            case 'orc':
-                raceVisualDescription = ' with strong rugged features, tough weathered resilient skin, sharp intelligent eyes, powerful imposing presence';
-                break;
-            case 'fairy':
-                raceVisualDescription = ' with delicate finely sculpted features, subtle pearlescent skin sheen, large enchanting sparkling eyes, graceful magical quality';
-                break;
-            case 'werewolf':
-                raceVisualDescription = ' with strong athletic features, healthy rugged vitality in skin, wild intense eyes, primal powerful energy';
-                break;
-            case 'ghost':
-                raceVisualDescription = ' with ethereal almost translucent features, pale otherworldly skin quality, haunting distant gaze, mysterious spectral elegance';
-                break;
-            case 'beast human':
-                raceVisualDescription = ' with striking hybrid features blending human and animal, animal-like intense intelligent eyes, wild untamed beauty';
-                break;
+        const physicals = racePhysicals[race];
+        if (physicals) {
+            raceVisualDescription = ` as a ${race}, with distinct features: ${physicals.skin}, ${physicals.eyes}, ${physicals.features}`;
         }
     }
 
