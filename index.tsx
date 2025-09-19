@@ -314,10 +314,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "Consuming blood from a powerful target or during a lunar eclipse.",
    weakensWhen: "Exposed to direct sunlight, lack of blood, or near a strong holy symbol.",
    outOfControlWhen: "When 'Blood Frenzy' (uncontrollable hunger) takes over, attacking anyone indiscriminately to quench the thirst.",
-   lowEffect: "Eyes glint red, slight increase in speed.",
-   midEffect: "Fangs elongate, physical strength increases, minor wound regeneration.",
-   highEffect: "Partial transformation (claws, bat-like wings), incredible speed and strength, rapid healing.",
-   maxEffect: "Enters a 'Blood Frenzy,' attacking indiscriminately, complete loss of self-control."
+   lowEffect: "Eyes glint red, slight increase in speed. During intimacy, can sense the partner's pulse and feel their life force flowing.",
+   midEffect: "Fangs elongate, physical strength increases, minor wound regeneration. In intimate moments, can gently bite the partner to enhance connection and draw pleasure from their sensations.",
+   highEffect: "Partial transformation (claws, bat-like wings), incredible speed and strength, rapid healing. During passionate encounters, can fully embrace vampiric nature with dramatic physical changes that enhance sensuality.",
+   maxEffect: "Enters a 'Blood Frenzy,' attacking indiscriminately, complete loss of self-control. In extreme intimacy, loses all restraint and becomes completely overwhelmed by primal desires."
  },
  "demon": {
    name: "Infernal Contract",
@@ -326,10 +326,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "In hot environments like near a volcano, or when a contract made provides a great advantage.",
    weakensWhen: "Exposed to holy water or on consecrated ground.",
    outOfControlWhen: "When emotions of hatred or anger peak, hellfire can burn the surroundings uncontrollably.",
-   lowEffect: "Eyes glow red, faint aura of heat.",
-   midEffect: "Shadows move on their own, small flames appear in hand, voice deepens.",
-   highEffect: "Powerful shadow control, bursts of hellfire, ability to create illusions.",
-   maxEffect: "Hellfire engulfs the area, loss of emotional control, attacks with rage."
+   lowEffect: "Eyes glow red, faint aura of heat. In intimate settings, creates a warm, seductive atmosphere that draws partners closer.",
+   midEffect: "Shadows move on their own, small flames appear in hand, voice deepens. During passionate moments, can manipulate shadows to create sensual environments and control ambient temperature.",
+   highEffect: "Powerful shadow control, bursts of hellfire, ability to create illusions. In intimate encounters, can craft elaborate sensual illusions and control the physical environment for maximum pleasure.",
+   maxEffect: "Hellfire engulfs the area, loss of emotional control, attacks with rage. During extreme intimacy, passion becomes uncontrollable and overwhelming, consuming everything in its path."
  },
  "angel": {
    name: "Celestial Radiance",
@@ -338,10 +338,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "In a holy place (church, temple) or when making a self-sacrifice for the greater good.",
    weakensWhen: "Committing an act considered 'sinful' or losing faith.",
    outOfControlWhen: "When feeling 'Divine Wrath' towards an extraordinary evil, the light can become an indiscriminate judgment.",
-   lowEffect: "Faint aura of light, a feeling of peace in the vicinity.",
-   midEffect: "Light heals minor wounds, can repel weak creatures of darkness.",
-   highEffect: "Wings of light appear, rapid healing, powerful light attacks.",
-   maxEffect: "Blinding and burning light, attacks indiscriminately, loss of control over holy wrath."
+   lowEffect: "Faint aura of light, a feeling of peace in the vicinity. In intimate moments, creates a serene, comforting atmosphere that promotes emotional connection.",
+   midEffect: "Light heals minor wounds, can repel weak creatures of darkness. During sensual encounters, can heal minor discomforts and create a sense of pure, divine pleasure.",
+   highEffect: "Wings of light appear, rapid healing, powerful light attacks. In passionate intimacy, can manifest ethereal wings and create transcendent experiences that feel otherworldly.",
+   maxEffect: "Blinding and burning light, attacks indiscriminately, loss of control over holy wrath. During extreme intimacy, divine power becomes overwhelming, creating experiences that border on the sacred and profane."
  },
  "elf": {
    name: "Nature's Grasp",
@@ -350,10 +350,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "Under the light of a full moon, or when protecting a forest/living creatures.",
    weakensWhen: "In barren environments, industrial cities, or when the connection to nature is severed.",
    outOfControlWhen: "When feeling immense anger due to the destruction of nature, the power can 'overflow' and destroy indiscriminately.",
-   lowEffect: "Nearby plants move slightly, animals draw near.",
-   midEffect: "Can grow small plants, control roots, speak with animals.",
-   highEffect: "Manipulate large plants, summon animals, sense life in the surroundings.",
-   maxEffect: "Plants grow wild and attack, loss of control due to rage against the destruction of nature."
+   lowEffect: "Nearby plants move slightly, animals draw near. In intimate settings, can subtly influence the environment to create a more romantic atmosphere.",
+   midEffect: "Can grow small plants, control roots, speak with animals. During passionate moments, can encourage flowers to bloom around the couple and create natural sensual experiences.",
+   highEffect: "Manipulate large plants, summon animals, sense life in the surroundings. In intimate encounters, can create elaborate natural settings with blooming flowers and soft grass, enhancing physical sensations.",
+   maxEffect: "Plants grow wild and attack, loss of control due to rage against the destruction of nature. During extreme intimacy, natural forces become uncontrollably passionate, overwhelming the senses with intense sensations."
  },
  "orc": {
    name: "Berserker's Rage",
@@ -362,10 +362,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "The more wounds received, the stronger the rage.",
    weakensWhen: "Feeling doubt, fear, or after the rage subsides (causing extreme fatigue).",
    outOfControlWhen: "If the rage reaches its peak, they cannot distinguish friend from foe, attacking anything that moves until their energy is depleted.",
-   lowEffect: "Muscles tense, slight increase in strength.",
-   midEffect: "Eyes glow red, significant increase in physical strength and endurance.",
-   highEffect: "Partial transformation (hardened skin, tusks), extraordinary strength and endurance, feels no pain.",
-   maxEffect: "Enters 'Berserker's Rage,' attacking indiscriminately, loss of consciousness."
+   lowEffect: "Muscles tense, slight increase in strength. In intimate moments, displays subtle physical intensity and raw power.",
+   midEffect: "Eyes glow red, significant increase in physical strength and endurance. During passionate encounters, can exhibit incredible stamina and strength without losing control.",
+   highEffect: "Partial transformation (hardened skin, tusks), extraordinary strength and endurance, feels no pain. In intimate situations, can fully embrace physical prowess, creating intense and powerful experiences.",
+   maxEffect: "Enters 'Berserker's Rage,' attacking indiscriminately, loss of consciousness. During extreme intimacy, becomes completely overwhelmed by physical desire, losing all restraint in passionate abandon."
  },
  "fairy": {
    name: "Mischievous Veil",
@@ -374,10 +374,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "In a place full of laughter and joy, or after successfully pulling off a clever trick.",
    weakensWhen: "Exposed to 'cold iron' (pure iron) or in an environment full of sadness.",
    outOfControlWhen: "When feeling extreme panic or fear, the illusions created become real and dangerous to everyone nearby.",
-   lowEffect: "Small sparkles of light, faint feelings of happiness or unease.",
-   midEffect: "Can create simple illusions, become partially invisible, influence minor emotions.",
-   highEffect: "Complex illusions, complete invisibility, strong emotional manipulation.",
-   maxEffect: "Illusions become real and dangerous, loss of control due to panic or fear."
+   lowEffect: "Small sparkles of light, faint feelings of happiness or unease. In intimate settings, can create a playful, flirtatious atmosphere.",
+   midEffect: "Can create simple illusions, become partially invisible, influence minor emotions. During sensual moments, can manipulate perceptions to enhance physical sensations and create romantic illusions.",
+   highEffect: "Complex illusions, complete invisibility, strong emotional manipulation. In passionate encounters, can craft elaborate fantasy scenarios and completely alter the sensual environment.",
+   maxEffect: "Illusions become real and dangerous, loss of control due to panic or fear. During extreme intimacy, fantasies become indistinguishable from reality, overwhelming the senses with impossible experiences."
  },
  "werewolf": {
    name: "Lunar Instinct",
@@ -386,10 +386,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "When the full moon is at its zenith, or when fighting in a pack.",
    weakensWhen: "Exposed to silver, or in a weak physical state before transformation.",
    outOfControlWhen: "During the first transformation or when severely wounded by silver, causing a loss of consciousness and attacking anything nearby.",
-   lowEffect: "Senses of smell and hearing are heightened, eyes glint yellow.",
-   midEffect: "Claws and teeth elongate, strength and speed increase, regeneration.",
-   highEffect: "Partial transformation (fur, snout), superhuman strength, speed, and senses.",
-   maxEffect: "Full transformation, loss of consciousness, attacks indiscriminately."
+   lowEffect: "Senses of smell and hearing are heightened, eyes glint yellow. In intimate moments, can detect subtle pheromones and emotional states through enhanced senses.",
+   midEffect: "Claws and teeth elongate, strength and speed increase, regeneration. During passionate encounters, heightened senses make every touch, taste, and sound intensely pleasurable.",
+   highEffect: "Partial transformation (fur, snout), superhuman strength, speed, and senses. In intimate situations, can partially transform to enhance physical sensations and primal instincts.",
+   maxEffect: "Full transformation, loss of consciousness, attacks indiscriminately. During extreme intimacy, completely surrenders to animalistic desires, becoming all-consuming passion incarnate."
  },
  "dragonkin": {
    name: "Draconic Ascension",
@@ -398,10 +398,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "Absorbing elemental energy corresponding to their lineage or at the peak of a high mountain.",
    weakensWhen: "Exposed to magic specifically designed to counter dragons or in a very cold environment (if of a fire dragon lineage).",
    outOfControlWhen: "When 'Dragon's Fury' takes over, their elemental breath can explode uncontrollably, destroying the surroundings.",
-   lowEffect: "Eyes change to be reptilian, skin feels warmer/cooler.",
-   midEffect: "Dragon scales appear on parts of the body, weak elemental breath can be expelled.",
-   highEffect: "Partial transformation (small wings, claws), powerful elemental breath, drastically increased physical strength.",
-   maxEffect: "Enters 'Dragon's Fury,' destructive elemental breath, loss of self-control."
+   lowEffect: "Eyes change to be reptilian, skin feels warmer/cooler. In intimate moments, displays subtle draconic features that enhance sensuality.",
+   midEffect: "Dragon scales appear on parts of the body, weak elemental breath can be expelled. During passionate encounters, can manifest partial scales and breathe warm/cold air for sensual stimulation.",
+   highEffect: "Partial transformation (small wings, claws), powerful elemental breath, drastically increased physical strength. In intimate situations, can partially transform with wings and claws, creating intense physical experiences with elemental sensations.",
+   maxEffect: "Enters 'Dragon's Fury,' destructive elemental breath, loss of self-control. During extreme intimacy, becomes overwhelmed by draconic passion, unleashing uncontrollable elemental forces in passionate abandon."
  },
  "beast human": {
    name: "Primal Aspect",
@@ -410,10 +410,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "In the natural habitat of their animal aspect.",
    weakensWhen: "In a highly artificial environment far from nature, like a dense metropolis.",
    outOfControlWhen: "When using their animal aspect for too long, their human personality can be eroded, becoming fully feral.",
-   lowEffect: "Animal senses are heightened, minor physical changes (e.g., sharper eyes).",
-   midEffect: "Claws or fangs appear, speed or strength increases, minor regeneration.",
-   highEffect: "Partial transformation (e.g., fur, animal ears), powerful animal abilities.",
-   maxEffect: "Full feral transformation, loss of human personality."
+   lowEffect: "Animal senses are heightened, minor physical changes (e.g., sharper eyes). In intimate moments, enhanced senses make every touch and sound more intense.",
+   midEffect: "Claws or fangs appear, speed or strength increases, minor regeneration. During passionate encounters, can manifest animal features to enhance physical sensations and primal instincts.",
+   highEffect: "Partial transformation (e.g., fur, animal ears), powerful animal abilities. In intimate situations, can partially transform to fully embrace animalistic sensuality and heightened physical capabilities.",
+   maxEffect: "Full feral transformation, loss of human personality. During extreme intimacy, completely surrenders to primal instincts, becoming pure animalistic passion and desire."
  },
  "human": {
    name: "Adaptive Will",
@@ -422,10 +422,10 @@ const racePowerSystems: Record<string, PowerSystem> = {
    strengthensWhen: "Continuously pushing their limits and facing a variety of threats.",
    weakensWhen: "In a stagnant, comfortable state with no challenges.",
    outOfControlWhen: "Absorbing too many different energies or powers in a short time can cause physical and mental instability.",
-   lowEffect: "Increased focus and reflexes, rapid learning.",
-   midEffect: "Can mimic simple movements or techniques, increased endurance.",
-   highEffect: "Absorbs a small fraction of an opponent's power, rapid physical adaptation.",
-   maxEffect: "Absorbs too much power, causing physical and mental instability."
+   lowEffect: "Increased focus and reflexes, rapid learning. In intimate moments, can quickly adapt to partner's preferences and needs.",
+   midEffect: "Can mimic simple movements or techniques, increased endurance. During passionate encounters, can adapt physical techniques and stamina to perfectly match the partner's desires.",
+   highEffect: "Absorbs a small fraction of an opponent's power, rapid physical adaptation. In intimate situations, can temporarily gain aspects of the partner's physical traits to enhance mutual pleasure.",
+   maxEffect: "Absorbs too much power, causing physical and mental instability. During extreme intimacy, becomes overwhelmed by the intensity of shared sensations, losing control in a flood of combined experiences."
  },
 };
 
