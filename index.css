@@ -396,7 +396,7 @@ overflow-y: auto;  /* Allow scrolling for screens */
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    width: 300px;
+    width: 100%;
 }
 .form-group label {
     font-size: 0.8rem;
@@ -405,6 +405,7 @@ overflow-y: auto;  /* Allow scrolling for screens */
     color: var(--text-secondary-color);
 }
 .form-group input, .form-group textarea, .form-group select {
+    width: 100%;
     padding: 0.6rem;
     border: 1px solid var(--border-color);
     border-radius: 6px;
@@ -1430,7 +1431,7 @@ input:checked + .slider:before {
     padding: 0.5rem;
     background-color: var(--user-bubble-bg);
     border-radius: 8px;
-    width: 300px;
+    width: 100%;
     flex-direction: column;
 }
 .radio-group label {
