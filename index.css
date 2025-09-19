@@ -91,7 +91,7 @@ body {
   display: flex;
   flex-direction: column;
   background-color: var(--background-color);
-/*overflow-y: auto;  Allow scrolling for screens */
+overflow-y: auto;  /* Allow scrolling for screens */
   -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
 }
 
@@ -1431,6 +1431,7 @@ input:checked + .slider:before {
     background-color: var(--user-bubble-bg);
     border-radius: 8px;
     width: 300px;
+    flex-direction: column;
 }
 .radio-group label {
     display: flex;
@@ -1541,6 +1542,7 @@ input:checked + .slider:before {
 .editor-form .form-group {
     padding: 0.5rem 0;
     margin-bottom: 0.5rem;
+    width: 100%;
 }
 .editor-form .form-group label {
     font-size: 0.9rem;
@@ -1558,6 +1560,7 @@ input:checked + .slider:before {
     font-size: 1rem;
     color: var(--text-secondary-color);
     transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%;
 }
 .editor-form .form-group textarea {
     resize: none;
