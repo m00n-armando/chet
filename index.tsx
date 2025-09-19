@@ -2872,29 +2872,36 @@ Refined Prompt:`,
     }
 }
 
-async function generateSceneDescription(character: Character, userPrompt: string, lastMessageContent: string): Promise<string> {
+async function generateSceneDescription(character: Character, userPrompt: string, lastMessageContent: string, perspective: 'selfie' | 'viewer'): Promise<string> {
     if (!ai) { throw new Error("AI not initialized"); }
+
+    const photographyStyle = perspective === 'selfie'
+        ? "The style is an intimate, authentic selfie taken with a front-facing smartphone camera; the phone is NOT visible. Emphasize realistic details and natural lighting."
+        : "The style is a professional DSLR photograph with an 85mm f/1.4 lens, creating a cinematic shallow depth of field. Emphasize tack-sharp focus on the eyes and a creamy bokeh background.";
+
     const promptForDirector = `
-You are a world class visual scene director. Generate a short, dynamic description of the character's immediate expression, body state, and action/pose for a selfie image prompt.
-The final image prompt will already include the character's core appearance (hair, ethnicity), their outfit, and location.
-Your description MUST NOT repeat those details and MUST be consistent with the narrative context and time of day.
+You are a world class visual scene director and photographer. Your task is to generate a short, dynamic, and cinematic description for an AI image generation prompt. This description must translate the narrative context into a compelling visual scene.
 
 **CONTEXT:**
 - Character's last message: "${lastMessageContent}"
-- User's request: "${userPrompt}"
+- User's request for an image: "${userPrompt}"
+- Desired Photography Style: ${photographyStyle}
 
 **YOUR TASK:**
-- In 1 concise paragraph, describe: facial expression, mood, micro-actions/pose, and immediate body condition (e.g., sleepy eyes, damp hair/skin, light sweat, relaxed posture, exhausted slouch, etc.) as appropriate to the context.
-- Make it specific, cinematic, and grounded in the current situation (home vs outside, night vs morning, resting vs active).
-- Examples:
-  - "Her eyelids heavy and lips parted in a drowsy half-smile, she tugs the duvet up to her chin and leans closer to the camera as the bedside lamp washes her face in warm light."
-  - "Breathing a little fast, she steadies herself against the bathroom sink, cheeks flushed and a few stray droplets still on her collarbone, giving a small triumphant grin."
+In 1 concise paragraph, describe the entire visual scene. Your description MUST include:
+1.  **Character's State:** Their facial expression, mood, micro-actions/pose, and immediate body condition (e.g., sleepy eyes, damp hair, light sweat, relaxed posture).
+2.  **Camera & Composition:** The camera angle (e.g., low-angle, high-angle, eye-level, dutch angle), shot type (e.g., close-up on face, medium shot from the waist up), and framing. Be creative and cinematic.
 
-**DO NOT DESCRIBE (If still in the same session or context.):**
-- Hair color or style. 
-- Ethnicity or race.
-- General clothing/outfit.
-- Room/location names explicitly.
+**CRITICAL CONSTRAINTS:**
+- The final image prompt will already contain the character's core appearance (face, ethnicity), their outfit, and location. **DO NOT** describe these elements.
+- Your description must be grounded in the narrative context and desired photography style.
+- Be specific and evocative.
+
+**EXAMPLES:**
+- **Context:** Character just woke up, selfie style.
+  **Description:** *A close-up shot from a high angle, as if looking down at her. Her eyelids are heavy and lips parted in a drowsy half-smile. She tugs the duvet up to her chin, and the soft morning light from the window washes over her face.*
+- **Context:** Character is confident after a workout, professional style.
+  **Description:** *A medium shot from a slightly low angle to convey power. She steadies herself against the bathroom sink, cheeks flushed and a few stray droplets on her collarbone, giving a small triumphant grin directly into the camera.*
 
 **Dynamic Scene Description:**`;
 
@@ -3054,7 +3061,7 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
 
     // --- Part 3: Session Context (Location & Hairstyle) ---
     const lastMessageContent = character.chatHistory.filter(m => m.sender === 'ai' && m.type !== 'image').pop()?.content || 'A neutral, happy mood.';
-    const sceneDescription = await generateSceneDescription(character, cleanedUserPrompt, lastMessageContent);
+    const sceneDescription = await generateSceneDescription(character, cleanedUserPrompt, lastMessageContent, perspective);
     const plan = await inferContextualLocation(character, sceneDescription, lastMessageContent);
     const sessionLocation = plan.location || basicInfo.cityOfResidence;
     const { timeDescription } = getContextualTime(new Date().toISOString(), character.timezone);
@@ -3078,17 +3085,14 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     }
 
     // --- Part 5: Session Outfit ---
-    let outfitDescription: string;
-    const hasContextChanged = character.sessionContext?.location !== sessionLocation || character.sessionContext?.timeDescription !== timeDescription;
-    if (character.sessionContext?.outfit && !hasContextChanged) {
-        outfitDescription = character.sessionContext.outfit;
-        console.log(`Reusing session outfit: ${outfitDescription}`);
-    } else {
-        outfitDescription = await generateOutfitDescription(character, sessionLocation, sceneDescription, character.sessionContext?.outfit);
-        console.log(`Generated new session outfit: ${outfitDescription}`);
-        if (!character.sessionContext) character.sessionContext = { hairstyle: '', timestamp: Date.now() };
-        character.sessionContext.outfit = outfitDescription;
+    // Always re-evaluate the outfit based on the latest context to allow for narrative-driven changes.
+    const outfitDescription = await generateOutfitDescription(character, sessionLocation, sceneDescription, character.sessionContext?.outfit);
+    console.log(`Determined session outfit: ${outfitDescription}`);
+    // Update the session context with the newly determined outfit.
+    if (!character.sessionContext) {
+        character.sessionContext = { hairstyle: sessionHairstyle, timestamp: now };
     }
+    character.sessionContext.outfit = outfitDescription;
 
     // --- Part 6: Collect Reference Images ---
     const referenceImages: { dataUrl: string, id: string, mimeType: string }[] = [];
@@ -3123,27 +3127,16 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
 
     const genderNoun = basicInfo.gender === 'male' ? 'man' : 'woman';
     const lightingNote = plan.lighting ? `, lighting: ${plan.lighting}` : '';
-    const sanitizedScene = sceneDescription.replace(/--\s*no phone visible[\s\S]*$/gi, '').replace(/no phone visible in the frame/gi, '').trim();
     const isBedroomNight = /bedroom|bed/i.test(sessionLocation) && /night|evening/i.test(timeDescription);
     const bedtimeLook = isBedroomNight ? ` No makeup (bare skin, no visible eyeliner or eyeshadow), natural lips; hair loose and slightly messy (bedhead).` : '';
     
-    const compositionInstruction = perspective === 'selfie'
-        ? `Composition: an intimate first-person selfie taken with a front-facing smartphone camera; the framing captures from the chest up; phone is NOT visible in frame; creates a slight smartphone-lens distortion.`
-        : `Composition: shot from the user's direct viewpoint; framed tightly from the chest up; captured with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.`;
-    
-    const photographyStyleInstruction = perspective === 'selfie'
-        ? `The image has an authentic, in-the-moment feel, as if spontaneously captured. Emphasize realistic details and natural lighting.`
-        : `The image exhibits exceptional professional photography quality with tack-sharp focus on the eyes and a creamy bokeh background. Emphasize realistic details like visible pores and soft shadows.`;
-
     const promptText = (
         `An ultra-realistic, high-detail, photographic quality image of ${basicInfo.name}, a ${age}-year-old ${raceOrDescent} ${genderNoun}. ` +
         `Her hair is ${sessionHairstyle}. ` +
         `She is wearing: ${outfitDescription}. ` +
         `${bedtimeLook} ` +
-        `${sanitizedScene}. ` +
+        `${sceneDescription}. ` + // The new dynamic scene description replaces the old static parts.
         `The scene is a ${sessionLocation} during the ${timeDescription}${lightingNote}. ` +
-        `${compositionInstruction} ` +
-        `${photographyStyleInstruction} ` +
         `${consistencyInstruction} ` +
         `The visual setting must match this micro-location. ` +
         `9:16 portrait orientation. ` +
@@ -4587,13 +4580,13 @@ async function handleGenerateContextualPrompt() {
     btn.disabled = true;
 
     try {
-        const lastMessageContent = character.chatHistory
-            .filter(m => m.sender === 'ai' && !m.content.includes('[GENERATE_'))
-            .pop()?.content || 'A neutral, happy mood.';
+        // The user's intent is generic: generate an image based on the current context.
+        // We pass this intent to the main prompt construction function.
+        const contextualPromptData = await constructMediaPrompt(character, "a selfie based on the last conversation topic");
         
-        const sceneDescription = await generateSceneDescription(character, "a selfie based on the last conversation topic", lastMessageContent);
-        const contextualPrompt = await constructMediaPrompt(character, sceneDescription);
-        manualImageElements.prompt.value = (contextualPrompt.parts.find(p => 'text' in p) as { text: string })?.text || '';
+        // Extract the final text part of the prompt to display to the user.
+        const promptText = (contextualPromptData.parts.find(p => 'text' in p) as { text: string })?.text || '';
+        manualImageElements.prompt.value = promptText;
 
     } catch (error) {
         console.error("Failed to generate contextual prompt:", error);
