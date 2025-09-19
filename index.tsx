@@ -1096,6 +1096,20 @@ function parseMarkdown(text: string): string {
 async function generateCharacterProfile(name: string, age: number, ethnicity: string, gender: string, race: string, aura: string, role: string): Promise<CharacterProfile> {
   if (!ai) { throw new Error("AI not initialized"); }
 
+  const characterRace = race.toLowerCase();
+  const physicals = racePhysicals[characterRace];
+  let racePhysicalsString = '';
+  if (physicals) {
+      racePhysicalsString = `
+**Race-Specific Physical Guidelines for ${characterRace}:**
+- **Skin:** ${physicals.skin}
+- **Eyes:** ${physicals.eyes}
+- **Hair:** ${physicals.hair}
+- **Features:** ${physicals.features}
+- **Build:** ${physicals.build}
+The 'physicalStyle' you generate MUST align with these guidelines.`;
+  }
+
   const prompt = `You are an world class character designer for a personal, evolving visual novel chat experience set in a fictional real world where supernatural races exist alongside humans. Based on the initial user input, fill out the provided JSON schema with creative, diverse, and high-quality content in ENGLISH.
 
 **CRITICAL INSTRUCTIONS:**
@@ -1113,6 +1127,7 @@ async function generateCharacterProfile(name: string, age: number, ethnicity: st
 - **Clothing Style:** Ensure clothingStyle describes modern, contemporary fashion appropriate for today's world. Use real-world clothing terms like jeans, t-shirts, dresses, suits, etc. Avoid fantasy, historical, or supernatural clothing elements.
 - **Language:** Fill ALL field values in English.
 - **Format:** Respond ONLY with the raw JSON object that conforms to the schema.
+${racePhysicalsString}
 
 **Initial User Input:**
 - Name: ${name}
@@ -3022,131 +3037,106 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     const now = Date.now();
 
     // --- Part 1: Parse Perspective from userPrompt ---
-    let perspective: 'selfie' | 'viewer' = 'selfie'; // Default to selfie
+    let perspective: 'selfie' | 'viewer' = 'selfie';
     let cleanedUserPrompt = userPrompt;
     const perspectiveMatch = userPrompt.match(/<perspective:\s*(selfie|viewer)>/i);
-    if (perspectiveMatch && perspectiveMatch[1]) {
+    if (perspectiveMatch?.[1]) {
         perspective = perspectiveMatch[1].toLowerCase() as 'selfie' | 'viewer';
         cleanedUserPrompt = userPrompt.replace(perspectiveMatch[0], '').trim();
     }
 
     // --- Part 2: Extract Core Details ---
     const age = basicInfo.age;
-    const rawRaceOrDescent = basicInfo.ethnicity;
-    const rawHairStyle = `${physicalStyle.hairColor} ${getRandomElement(physicalStyle.hairStyle)}`; // Select random hair style
-    const rawOverallVibe = physicalStyle.overallVibe;
-    const rawSkinDescription = physicalStyle.skinTone;
-
-    const [
-        raceOrDescent,
-        sessionHairstyle
-    ] = await Promise.all([
-        translateTextToEnglish(rawRaceOrDescent),
-        translateTextToEnglish(rawHairStyle)
+    const [raceOrDescent, sessionHairstyle] = await Promise.all([
+        translateTextToEnglish(basicInfo.ethnicity),
+        translateTextToEnglish(`${physicalStyle.hairColor} ${getRandomElement(physicalStyle.hairStyle)}`)
     ]);
 
     // --- Part 3: Session Context (Location & Hairstyle) ---
-    // Infer contextual micro-location
-    const lastMessageContent = character.chatHistory
-        .filter(m => m.sender === 'ai' && m.type !== 'image')
-        .pop()?.content || 'A neutral, happy mood.';
+    const lastMessageContent = character.chatHistory.filter(m => m.sender === 'ai' && m.type !== 'image').pop()?.content || 'A neutral, happy mood.';
     const sceneDescription = await generateSceneDescription(character, cleanedUserPrompt, lastMessageContent);
     const plan = await inferContextualLocation(character, sceneDescription, lastMessageContent);
     const sessionLocation = plan.location || basicInfo.cityOfResidence;
+    const { timeDescription } = getContextualTime(new Date().toISOString(), character.timezone);
 
-    const { timeDescription, localTime } = getContextualTime(new Date().toISOString(), character.timezone);
-
-    // Update session context with current location and time for future comparisons
     if (activeCharacterSessionContext) {
         activeCharacterSessionContext.hairstyle = sessionHairstyle;
         activeCharacterSessionContext.timestamp = now;
-        activeCharacterSessionContext.location = sessionLocation; // Store for outfit logic
-        activeCharacterSessionContext.timeDescription = timeDescription; // Store for outfit logic
+        activeCharacterSessionContext.location = sessionLocation;
+        activeCharacterSessionContext.timeDescription = timeDescription;
     } else {
-        activeCharacterSessionContext = {
-            hairstyle: sessionHairstyle,
-            timestamp: now,
-            location: sessionLocation,
-            timeDescription: timeDescription,
-        } as SessionContext;
+        activeCharacterSessionContext = { hairstyle: sessionHairstyle, timestamp: now, location: sessionLocation, timeDescription };
     }
 
     // --- Part 4: Race Visual Characteristics ---
     let raceVisualDescription = '';
-    if (basicInfo.race && basicInfo.race.toLowerCase() !== 'human') {
-        const race = basicInfo.race.toLowerCase();
-        const physicals = racePhysicals[race];
+    if (basicInfo.race.toLowerCase() !== 'human') {
+        const physicals = racePhysicals[basicInfo.race.toLowerCase()];
         if (physicals) {
-            raceVisualDescription = ` As a ${race}, ${character.characterProfile.basicInfo.gender === 'male' ? 'he' : 'she'} has distinct features: ${physicals.skin} ${physicals.eyes} ${physicals.features}`;
+            raceVisualDescription = ` As a ${basicInfo.race}, ${basicInfo.gender === 'male' ? 'he' : 'she'} has distinct features: ${physicals.skin} ${physicals.eyes} ${physicals.features}`;
         }
     }
 
-    // --- Part 5: Generate/Retrieve Session Outfit based on context changes ---
+    // --- Part 5: Session Outfit ---
     let outfitDescription: string;
-    const previousLocation = character.sessionContext?.location;
-    const previousTimeDescription = character.sessionContext?.timeDescription;
-
-    const hasLocationChanged = previousLocation !== sessionLocation;
-    const hasTimeChangedSignificantly = previousTimeDescription !== timeDescription && (
-        (timeDescription === 'night' && previousTimeDescription !== 'night') ||
-        (timeDescription === 'morning' && previousTimeDescription !== 'morning') ||
-        (timeDescription === 'evening' && previousTimeDescription !== 'evening') ||
-        (timeDescription === 'afternoon' && previousTimeDescription !== 'afternoon')
-    );
-
-    // Versi RENA yang sedikit lebih ringkas
-    if (character.sessionContext?.outfit && !hasLocationChanged && !hasTimeChangedSignificantly) {
+    const hasContextChanged = character.sessionContext?.location !== sessionLocation || character.sessionContext?.timeDescription !== timeDescription;
+    if (character.sessionContext?.outfit && !hasContextChanged) {
         outfitDescription = character.sessionContext.outfit;
         console.log(`Reusing session outfit: ${outfitDescription}`);
     } else {
-        const previousOutfit = character.sessionContext?.outfit;
-        outfitDescription = await generateOutfitDescription(character, sessionLocation, sceneDescription, previousOutfit);
-        console.log(`Generated new session outfit based on previous context: ${outfitDescription}`);
-        
-        // Jika sessionContext belum ada, buat dulu objek kosongnya
-        if (!character.sessionContext) {
-            character.sessionContext = { hairstyle: '', timestamp: Date.now() }; 
-        }
-        // Sekarang, kita bisa dengan aman meng-update outfit-nya
+        outfitDescription = await generateOutfitDescription(character, sessionLocation, sceneDescription, character.sessionContext?.outfit);
+        console.log(`Generated new session outfit: ${outfitDescription}`);
+        if (!character.sessionContext) character.sessionContext = { hairstyle: '', timestamp: Date.now() };
         character.sessionContext.outfit = outfitDescription;
     }
 
-    // --- Part 6: Build the new, structured prompt ---
-    const genderPronoun = character.characterProfile.basicInfo.gender === 'male' ? 'him' : 'her';
-    const genderNoun = character.characterProfile.basicInfo.gender === 'male' ? 'man' : 'woman';
+    // --- Part 6: Collect Reference Images ---
+    const referenceImages: { dataUrl: string, id: string, mimeType: string }[] = [];
+    const avatarMimeType = character.avatar.match(/data:(.*);base64,/)?.[1] || 'image/png';
+    referenceImages.push({ dataUrl: character.avatar, id: "0", mimeType: avatarMimeType });
+    console.log("Added avatar as primary reference.");
 
-    const lightingNote = plan.lighting ? `, lighting: ${plan.lighting}` : '';
-
-    // Sanitize scene description to avoid duplicated constraints
-    const sanitizedScene = sceneDescription
-        .replace(/--\s*no phone visible[\s\S]*$/gi, '')
-        .replace(/no phone visible in the frame/gi, '')
-        .trim();
-
-    // Contextual bedtime look adjustments
-    const isBedroom = /bedroom|bed|pillow|duvet/i.test(sessionLocation);
-    const isNightTime = /night|evening/i.test(timeDescription);
-    const bedtimeLook = (isBedroom && isNightTime)
-        ? ` No makeup (bare skin, no visible eyeliner or eyeshadow), natural lips; hair loose and slightly messy (bedhead).`
-        : '';
-
-    let compositionInstruction = '';
-    let photographyStyleInstruction = ''; 
-
-    if (perspective === 'selfie') {
-        // HANYA fokus pada TEKNIK kamera HP, buang semua instruksi pose.
-        compositionInstruction = `Composition: an intimate first-person selfie taken with a front-facing smartphone camera; the framing captures from the chest up; phone is NOT visible in frame; creates a slight smartphone-lens distortion.`;
-        photographyStyleInstruction = `The image has an authentic, in-the-moment feel, as if spontaneously captured. Emphasize realistic details and natural lighting.`;
-    } else { 
-        // HANYA fokus pada TEKNIK kamera profesional, buang semua instruksi pose.
-        compositionInstruction = `Composition: shot from the user's direct viewpoint; framed tightly from the chest up; captured with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.`;
-        photographyStyleInstruction = `The image exhibits exceptional professional photography quality with tack-sharp focus on the eyes and a creamy bokeh background. Emphasize realistic details like visible pores and soft shadows.`;
+    let sceneReferenceImage: { dataUrl: string, id: string } | null = null;
+    const lastRef = activeCharacterSessionContext?.lastReferenceImage;
+    if (lastRef && lastRef.id !== "0") {
+        const media = character.media.find(m => m.id === lastRef.id);
+        if (media && typeof media.data === 'string') sceneReferenceImage = { dataUrl: media.data, id: media.id };
+    }
+    if (!sceneReferenceImage) {
+        const latestMediaImage = character.media.filter(m => m.type === 'image' && typeof m.data === 'string').slice(-1)[0];
+        if (latestMediaImage) sceneReferenceImage = { dataUrl: latestMediaImage.data as string, id: latestMediaImage.id };
     }
 
-    const consistencyInstruction = `The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit should be ${outfitDescription}, maintained from the reference image unless the new context requires a change. Pose, expression, hairstyle, makeup, and immediate body condition should be dynamic and match the scene's context.`;
+    if (sceneReferenceImage) {
+        const sceneMimeType = sceneReferenceImage.dataUrl.match(/data:(.*);base64,/)?.[1] || 'image/png';
+        referenceImages.push({ ...sceneReferenceImage, mimeType: sceneMimeType });
+        console.log(`Added scene reference image (ID: ${sceneReferenceImage.id}).`);
+    }
+
+    // --- Part 7: Build Final Prompt ---
+    let consistencyInstruction: string;
+    if (referenceImages.length > 1) {
+        consistencyInstruction = `CRITICAL INSTRUCTION: Use BOTH reference images provided. The FIRST image is the character's avatar; use it as the absolute ground-truth for the character's face, body, and physical identity. The SECOND image provides the context for the current scene; reuse its outfit, general pose, and lighting. The character's final face MUST match the FIRST image (the avatar), NOT the second.`;
+    } else {
+        consistencyInstruction = `The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit should be ${outfitDescription}. Pose, expression, hairstyle, makeup, and immediate body condition should be dynamic and match the scene's context.`;
+    }
+
+    const genderNoun = basicInfo.gender === 'male' ? 'man' : 'woman';
+    const lightingNote = plan.lighting ? `, lighting: ${plan.lighting}` : '';
+    const sanitizedScene = sceneDescription.replace(/--\s*no phone visible[\s\S]*$/gi, '').replace(/no phone visible in the frame/gi, '').trim();
+    const isBedroomNight = /bedroom|bed/i.test(sessionLocation) && /night|evening/i.test(timeDescription);
+    const bedtimeLook = isBedroomNight ? ` No makeup (bare skin, no visible eyeliner or eyeshadow), natural lips; hair loose and slightly messy (bedhead).` : '';
+    
+    const compositionInstruction = perspective === 'selfie'
+        ? `Composition: an intimate first-person selfie taken with a front-facing smartphone camera; the framing captures from the chest up; phone is NOT visible in frame; creates a slight smartphone-lens distortion.`
+        : `Composition: shot from the user's direct viewpoint; framed tightly from the chest up; captured with a professional DSLR camera and 85mm f/1.4 portrait lens, creating a cinematic shallow depth of field.`;
+    
+    const photographyStyleInstruction = perspective === 'selfie'
+        ? `The image has an authentic, in-the-moment feel, as if spontaneously captured. Emphasize realistic details and natural lighting.`
+        : `The image exhibits exceptional professional photography quality with tack-sharp focus on the eyes and a creamy bokeh background. Emphasize realistic details like visible pores and soft shadows.`;
 
     const promptText = (
-        `An ultra-realistic, high-detail, photographic quality image of ${basicInfo.name}, a ${age}-year-old ${raceOrDescent} ${genderNoun}${raceVisualDescription}. ` +
+        `An ultra-realistic, high-detail, photographic quality image of ${basicInfo.name}, a ${age}-year-old ${raceOrDescent} ${genderNoun}. ` +
         `Her hair is ${sessionHairstyle}. ` +
         `She is wearing: ${outfitDescription}. ` +
         `${bedtimeLook} ` +
@@ -3160,74 +3150,24 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         `--style raw --no 3d, cgi, animation, illustration, anime, cartoon, digital art.`
     ).trim().replace(/\s\s+/g, ' ');
 
-    const parts: Part[] = [{ text: promptText }];
-    let finalReferenceImage: { dataUrl: string, id: string } | null = null;
-    let foundMimeType: string | undefined;
+    const parts: Part[] = referenceImages.map(refImg => ({
+        inlineData: {
+            mimeType: refImg.mimeType,
+            data: refImg.dataUrl.split(',')[1],
+        },
+    }));
+    parts.push({ text: promptText });
 
-    // Coba dapatkan referensi dari session context terlebih dahulu
-    if (activeCharacterSessionContext?.lastReferenceImage) {
-        const ref = activeCharacterSessionContext.lastReferenceImage;
-        // Cek apakah ID "0" (avatar) atau ada di galeri
-        if (ref.id === "0") {
-            finalReferenceImage = { dataUrl: character.avatar, id: ref.id };
-        } else {
-            const media = character.media.find(m => m.id === ref.id);
-            if (media && typeof media.data === 'string') {
-                finalReferenceImage = { dataUrl: media.data, id: ref.id };
-            }
-        }
-    }
-
-    // Jika tidak ada referensi dari session, atau referensi session tidak valid,
-    // cari gambar terbaru di galeri sebagai fallback utama.
-    if (!finalReferenceImage) {
-        const latestMediaImage = character.media
-            .filter(m => m.type === 'image' && typeof m.data === 'string' && !isNaN(parseInt(m.id, 10)))
-            .sort((a, b) => parseInt(b.id, 10) - parseInt(a.id, 10))[0];
-        
-        if (latestMediaImage) {
-            console.log(`Found latest image in gallery (ID: ${latestMediaImage.id}) to use as reference.`);
-            finalReferenceImage = { dataUrl: latestMediaImage.data as string, id: latestMediaImage.id };
-        }
-    }
-    
-    // Jika masih tidak ada referensi, baru fallback ke avatar.
-    if (!finalReferenceImage) {
-        console.warn("No valid session or gallery reference, falling back to avatar.");
-        finalReferenceImage = { dataUrl: character.avatar, id: "0" };
-    }
-
-    // Simpan referensi yang akhirnya digunakan ke session context untuk request berikutnya.
-    if (finalReferenceImage && activeCharacterSessionContext) {
-        const mimeType = finalReferenceImage.dataUrl.match(/data:(.*);base64,/)?.[1] || 'image/png';
+    if (sceneReferenceImage && activeCharacterSessionContext) {
         activeCharacterSessionContext.lastReferenceImage = {
-            id: finalReferenceImage.id,
-            mimeType: mimeType,
-            dataUrl: finalReferenceImage.dataUrl
+            id: sceneReferenceImage.id,
+            mimeType: sceneReferenceImage.dataUrl.match(/data:(.*);base64,/)?.[1] || 'image/png',
+            dataUrl: sceneReferenceImage.dataUrl
         };
         character.sessionContext = activeCharacterSessionContext;
     }
 
-    // Ekstrak MIME type dari dataUrl yang sudah pasti.
-    if (finalReferenceImage) {
-        foundMimeType = finalReferenceImage.dataUrl.match(/data:(.*);base64,/)?.[1];
-    
-        // Jurus pertahanan terakhir: Hanya tambahkan jika datanya valid.
-        if (foundMimeType && foundMimeType.startsWith('image/')) {
-            const base64Data = finalReferenceImage.dataUrl.split(',')[1];
-            parts.push({
-                inlineData: {
-                    mimeType: foundMimeType,
-                    data: base64Data,
-                },
-            });
-            console.log(`Successfully added reference image (ID: ${finalReferenceImage.id}) with MIME type: ${foundMimeType}`);
-        } else {
-            console.error(`Skipping reference image (ID: ${finalReferenceImage.id}) due to invalid MIME type: ${foundMimeType}`);
-        }
-    }
-
-    return { parts, referenceImage: finalReferenceImage };
+    return { parts, referenceImage: sceneReferenceImage };
 }
 
 async function generateImageWithFallback(
@@ -4312,7 +4252,22 @@ async function handleAiRefineCharacterDetails() {
     
     showLoading('AI is refining the profile...');
     try {
+        const characterRace = currentProfile.basicInfo.race.toLowerCase();
+        const physicals = racePhysicals[characterRace];
+        let racePhysicalsString = '';
+        if (physicals) {
+            racePhysicalsString = `
+**Race-Specific Physical Guidelines for ${characterRace}:**
+- **Skin:** ${physicals.skin}
+- **Eyes:** ${physicals.eyes}
+- **Hair:** ${physicals.hair}
+- **Features:** ${physicals.features}
+- **Build:** ${physicals.build}
+Your refinements to the 'physicalStyle' section MUST align with these guidelines.`;
+        }
+
         const prompt = `You are refining a character profile for a personal visual novel chat experience set in a fictional real world where supernatural races exist alongside humans. Refine and improve this character JSON to make it more cohesive, detailed, and interesting. Ensure all fields are filled plausibly and creatively within this fantasy context. Maintain the original JSON structure perfectly. Do not change user-provided fields such as name, age, ethnicity, gender, race, aura, roles. Incorporate the race naturally into the character's background and traits. Do not add any conversational text, only return the refined JSON object.
+${racePhysicalsString}
 
 Current JSON:
 ${JSON.stringify(currentProfile, null, 2)}`;
