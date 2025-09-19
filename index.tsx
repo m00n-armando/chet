@@ -3343,9 +3343,9 @@ async function handleGenerateImageRequest(
     const statusEl = placeholder.querySelector('p') as HTMLParagraphElement;
 
     let finalReferenceImage: { base64Data: string; mimeType: string; } | undefined;
-    let finalEnglishPrompt: Part[] = [];
     let imageBase64 = '';
     let success = false;
+    let mediaPromptParts: Part[];
 
     try {
         // --- Determine Reference Image and Model ---
@@ -3395,7 +3395,7 @@ async function handleGenerateImageRequest(
             // This case should ideally not be hit with the new logic, but serves as a failsafe.
             // Default to Nano Banana if no model is specified.
             statusEl.textContent = `Generating with Nano Banana...`;
-            const textPart: Part = { text: (finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '' };
+            const textPart: Part = { text: (mediaPromptParts.find(p => 'text' in p) as { text: string })?.text || '' };
             imageBase64 = await generateImageWithFallback([textPart], 'gemini-2.5-flash-image-preview', safetyLevel || 'flexible', finalReferenceImage);
             success = true;
         }
@@ -3405,7 +3405,7 @@ async function handleGenerateImageRequest(
             id: mediaId,
             type: 'image',
             data: `data:image/png;base64,${imageBase64}`,
-            prompt: (finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '',
+            prompt: (mediaPromptParts.find(p => 'text' in p) as { text: string })?.text || '',
         };
         const existingMediaIndex = character.media.findIndex(m => m.id === mediaId);
         if (existingMediaIndex > -1) character.media[existingMediaIndex] = newMedia;
@@ -3446,7 +3446,7 @@ async function handleGenerateImageRequest(
         const errorMessage = error.message || 'Image generation failed.';
         placeholder.classList.remove('loading');
         placeholder.classList.add('error');
-        placeholder.dataset.failedPrompt = (finalEnglishPrompt.find(p => 'text' in p) as { text: string })?.text || '';
+        placeholder.dataset.failedPrompt = (mediaPromptParts.find(p => 'text' in p) as { text: string })?.text || '';
         if (finalReferenceImage) {
             // Store the full reference image object in a temporary global variable
             tempRetryReferenceImage = {
