@@ -1369,18 +1369,18 @@ input:checked + .slider:before {
 /* Reference Image Dropzone */
 .dropzone {
     position: relative;
-    width: 25%;
+    width: 80px;
     height: 80px; /* Smaller height for reference image */
     border: 2px dashed var(--border-color);
     border-radius: 8px;
     display: flex;
     justify-content: center;
-    align-items: center;
     cursor: pointer;
     transition: border-color 0.2s, background-color 0.2s;
     overflow: hidden;
     flex-shrink: 0; /* Prevent shrinking */
     object-fit: contain;
+    justify-content: center;
 }
 .dropzone:hover, .dropzone.dragover {
     border-color: var(--primary-color);

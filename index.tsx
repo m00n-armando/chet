@@ -2111,9 +2111,9 @@ async function handleConfirmGenerateAvatar() {
         const avatarBase64 = await generateImage(
             [{ text: finalPrompt }],
             selectedModel,
-            'flexible',
+            'unrestricted',
             undefined,
-            '3:4'
+            '1:1'
         );
 
         if (avatarBase64) {
@@ -3017,7 +3017,7 @@ JSON:`;
     }
 }
 
-async function constructMediaPrompt(character: Character, userPrompt: string): Promise<Part[]> {
+async function constructMediaPrompt(character: Character, userPrompt: string): Promise<{ parts: Part[], referenceImage: { dataUrl: string, id: string } | null }> {
     const { basicInfo, physicalStyle } = character.characterProfile;
     const now = Date.now();
 
@@ -3227,7 +3227,7 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         }
     }
 
-    return parts;
+    return { parts, referenceImage: finalReferenceImage };
 }
 
 async function generateImageWithFallback(
@@ -3360,10 +3360,10 @@ async function handleGenerateImageRequest(
     placeholder.innerHTML = `<div class="spinner"></div><p>Preparing photo...</p>`;
     const statusEl = placeholder.querySelector('p') as HTMLParagraphElement;
 
-    let finalReferenceImage: { base64Data: string; mimeType: string; } | undefined;
-    let imageBase64 = '';
-    let success = false;
-    let mediaPromptParts: Part[];
+let finalReferenceImage: { base64Data: string; mimeType: string; dataUrl: string; } | undefined;
+let imageBase64 = '';
+let success = false;
+let mediaPromptParts: Part[];
 
     try {
         // --- Determine Reference Image and Model ---
@@ -3377,7 +3377,8 @@ async function handleGenerateImageRequest(
             // Manual generation: use the reference image provided by the user, if any.
             finalReferenceImage = manualImageReference ? {
                 base64Data: manualImageReference.base64Data,
-                mimeType: manualImageReference.mimeType
+                mimeType: manualImageReference.mimeType,
+                dataUrl: manualImageReference.dataUrl
             } : undefined;
         }
 
@@ -3397,24 +3398,32 @@ async function handleGenerateImageRequest(
             }
         } else {
             // For AI-initiated generation, construct the full prompt with context.
-            statusEl.textContent = 'Directing scene...';
-            const sceneDescription = await generateSceneDescription(character, originalPrompt, 'A neutral, happy mood.');
             statusEl.textContent = 'Constructing prompt...';
-            mediaPromptParts = await constructMediaPrompt(character, sceneDescription);
+            const promptData = await constructMediaPrompt(character, originalPrompt);
+            mediaPromptParts = promptData.parts;
+            if (promptData.referenceImage) {
+                const ref = promptData.referenceImage;
+                const mimeType = ref.dataUrl.match(/data:(.*);base64,/)?.[1] || 'image/png';
+                finalReferenceImage = {
+                    base64Data: ref.dataUrl.split(',')[1],
+                    mimeType: mimeType,
+                    dataUrl: ref.dataUrl
+                };
+            }
         }
 
         // --- Generate Image ---
         if (modelToUse) {
             statusEl.textContent = `Generating with ${modelToUse}...`;
             // The reference image is now part of `mediaPromptParts`, so `finalReferenceImage` is not needed here.
-            imageBase64 = await generateImageWithFallback(mediaPromptParts, modelToUse, safetyLevel || 'flexible');
+            imageBase64 = await generateImageWithFallback(mediaPromptParts, modelToUse, safetyLevel || 'unrestricted');
             success = true;
         } else {
             // This case should ideally not be hit with the new logic, but serves as a failsafe.
             // Default to Nano Banana if no model is specified.
             statusEl.textContent = `Generating with Nano Banana...`;
             const textPart: Part = { text: (mediaPromptParts.find(p => 'text' in p) as { text: string })?.text || '' };
-            imageBase64 = await generateImageWithFallback([textPart], 'gemini-2.5-flash-image-preview', safetyLevel || 'flexible', finalReferenceImage);
+            imageBase64 = await generateImageWithFallback([textPart], 'gemini-2.5-flash-image-preview', safetyLevel || 'unrestricted', finalReferenceImage);
             success = true;
         }
         
@@ -3470,7 +3479,7 @@ async function handleGenerateImageRequest(
             tempRetryReferenceImage = {
                 base64Data: finalReferenceImage.base64Data,
                 mimeType: finalReferenceImage.mimeType,
-                dataUrl: `data:${finalReferenceImage.mimeType};base64,${finalReferenceImage.base64Data}`
+                dataUrl: finalReferenceImage.dataUrl
             };
         } else {
             tempRetryReferenceImage = null;
@@ -4629,7 +4638,7 @@ async function handleGenerateContextualPrompt() {
         
         const sceneDescription = await generateSceneDescription(character, "a selfie based on the last conversation topic", lastMessageContent);
         const contextualPrompt = await constructMediaPrompt(character, sceneDescription);
-        manualImageElements.prompt.value = (contextualPrompt.find(p => 'text' in p) as { text: string })?.text || '';
+        manualImageElements.prompt.value = (contextualPrompt.parts.find(p => 'text' in p) as { text: string })?.text || '';
 
     } catch (error) {
         console.error("Failed to generate contextual prompt:", error);
@@ -5694,7 +5703,7 @@ async function continueInit() {
         
         try {
             const textPart: Part = { text: prompt };
-            const imageBase64 = await generateImage([textPart], 'imagen-4.0-generate-001', 'flexible');
+            const imageBase64 = await generateImage([textPart], 'imagen-4.0-generate-001', 'unrestricted');
              const character = characters.find(c => c.id === activeCharacterId)!;
              const newMedia: Media = {
                 id: mediaId,
