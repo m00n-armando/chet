@@ -530,12 +530,16 @@ const characterEditorElements = {
     }
 };
 const imageRetryElements = {
-    referenceContainer: document.getElementById('retry-reference-container')! as HTMLDivElement,
-    referenceImg: document.getElementById('retry-reference-img')! as HTMLImageElement,
     textarea: document.getElementById('retry-prompt-textarea')! as HTMLTextAreaElement,
     regenerateBtn: document.getElementById('regenerate-image-btn')! as HTMLButtonElement,
     cancelBtn: document.getElementById('cancel-retry-btn')! as HTMLButtonElement,
     aiRefineBtn: document.getElementById('ai-refine-retry-prompt-btn')! as HTMLButtonElement,
+    selectFromGalleryBtn: document.getElementById('retry-select-from-gallery-btn')! as HTMLButtonElement,
+    refDropzone: document.getElementById('retry-reference-image-dropzone')! as HTMLDivElement,
+    refInput: document.getElementById('retry-reference-image-input')! as HTMLInputElement,
+    refPreview: document.getElementById('retry-reference-image-preview')! as HTMLImageElement,
+    refDropzonePrompt: document.querySelector('#retry-reference-image-dropzone .dropzone-prompt')! as HTMLDivElement,
+    refRemoveBtn: document.getElementById('retry-remove-reference-image-btn')! as HTMLButtonElement,
 };
 const imageEditElements = {
     previewImg: document.getElementById('edit-image-preview')! as HTMLImageElement,
@@ -3456,11 +3460,13 @@ async function handleGenerateImageRequest(
         placeholder.innerHTML = `<p>Error: ${errorMessage}</p><button class="retry-edit-btn">Edit & Retry</button>`;
         
         placeholder.querySelector('.retry-edit-btn')!.addEventListener('click', () => {
+            resetRetryReferenceImageUI(); // Reset first
             if (tempRetryReferenceImage) {
-                imageRetryElements.referenceImg.src = tempRetryReferenceImage.dataUrl;
-                imageRetryElements.referenceContainer.style.display = 'block';
-            } else {
-                imageRetryElements.referenceContainer.style.display = 'none';
+                // Use the new UI elements
+                imageRetryElements.refPreview.src = tempRetryReferenceImage.dataUrl;
+                imageRetryElements.refPreview.classList.remove('hidden');
+                imageRetryElements.refDropzonePrompt.classList.add('hidden');
+                imageRetryElements.refRemoveBtn.classList.remove('hidden');
             }
             imageRetryElements.textarea.value = placeholder.dataset.failedPrompt || '';
             imageRetryElements.regenerateBtn.dataset.mediaId = mediaId;
@@ -3531,13 +3537,14 @@ async function handleRegenerateImage() {
     }
 
     modals.imageRetry.style.display = 'none';
-    // When retrying, it's considered a "manual" generation, so we don't know the model.
-    // Let's prompt the user or default to Nano Banana. For now, default to NB as it's faster.
-    await handleGenerateImageRequest(originalPrompt, { 
-        mediaIdToUse: mediaId, 
-        promptToUse: editedPrompt, 
+    // When retrying, it's considered a "manual" generation.
+    // We use the tempRetryReferenceImage which holds the state of the retry modal's reference image.
+    await handleGenerateImageRequest(originalPrompt, {
+        mediaIdToUse: mediaId,
+        promptToUse: editedPrompt,
         safetyLevel: selectedSafetyLevel,
-        modelToUse: 'gemini-2.5-flash-image-preview' // Default retry to NB
+        modelToUse: 'gemini-2.5-flash-image-preview', // Default retry to NB
+        manualReferenceImage: tempRetryReferenceImage || undefined
     });
 }
 
@@ -4633,6 +4640,15 @@ function resetEditReferenceImageUI() {
     imageEditElements.refRemoveBtn.classList.add('hidden');
 }
 
+function resetRetryReferenceImageUI() {
+    tempRetryReferenceImage = null;
+    imageRetryElements.refInput.value = '';
+    imageRetryElements.refPreview.classList.add('hidden');
+    imageRetryElements.refPreview.src = '';
+    imageRetryElements.refDropzonePrompt.classList.remove('hidden');
+    imageRetryElements.refRemoveBtn.classList.add('hidden');
+}
+
 async function processReferenceImage(file: File | null) {
     if (!file || !file.type.startsWith('image/')) {
         if (file) alert("Please select a valid image file.");
@@ -4678,6 +4694,30 @@ async function processEditReferenceImage(file: File | null) {
         console.error("Error processing reference image:", error);
         alert("Failed to process the image.");
         resetEditReferenceImageUI();
+    }
+}
+
+async function processRetryReferenceImage(file: File | null) {
+    if (!file || !file.type.startsWith('image/')) {
+        if (file) alert("Please select a valid image file.");
+        return;
+    }
+
+    try {
+        const base64Image = await blobToBase64(file);
+        const mimeType = file.type;
+        const base64Data = base64Image.split(',')[1];
+
+        tempRetryReferenceImage = { base64Data, mimeType, dataUrl: base64Image };
+
+        imageRetryElements.refPreview.src = base64Image;
+        imageRetryElements.refPreview.classList.remove('hidden');
+        imageRetryElements.refDropzonePrompt.classList.add('hidden');
+        imageRetryElements.refRemoveBtn.classList.remove('hidden');
+    } catch (error) {
+        console.error("Error processing retry reference image:", error);
+        alert("Failed to process the image.");
+        resetRetryReferenceImageUI();
     }
 }
 
@@ -5485,6 +5525,47 @@ async function continueInit() {
         modals.imageRetry.style.display = 'none';
     });
     imageRetryElements.aiRefineBtn.addEventListener('click', handleAiRefineRetryPrompt);
+
+    // New listeners for the retry modal's reference image functionality
+    imageRetryElements.selectFromGalleryBtn.addEventListener('click', () => {
+        openReferenceGallery((mediaData) => {
+            tempRetryReferenceImage = { base64Data: mediaData.base64Data, mimeType: mediaData.mimeType, dataUrl: mediaData.dataUrl };
+            imageRetryElements.refPreview.src = mediaData.dataUrl;
+            imageRetryElements.refPreview.classList.remove('hidden');
+            imageRetryElements.refDropzonePrompt.classList.add('hidden');
+            imageRetryElements.refRemoveBtn.classList.remove('hidden');
+        });
+    });
+    imageRetryElements.refDropzone.addEventListener('click', () => imageRetryElements.refInput.click());
+    imageRetryElements.refInput.addEventListener('change', (e) => processRetryReferenceImage((e.target as HTMLInputElement).files?.[0] || null));
+    imageRetryElements.refRemoveBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        resetRetryReferenceImageUI();
+    });
+    imageRetryElements.refDropzone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        imageRetryElements.refDropzone.classList.add('dragover');
+    });
+    imageRetryElements.refDropzone.addEventListener('dragleave', () => {
+        imageRetryElements.refDropzone.classList.remove('dragover');
+    });
+    imageRetryElements.refDropzone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        imageRetryElements.refDropzone.classList.remove('dragover');
+        const file = e.dataTransfer?.files?.[0];
+        processRetryReferenceImage(file || null);
+    });
+    imageRetryElements.refDropzone.addEventListener('paste', (e) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        for (const item of items) {
+            if (item.type.indexOf('image') !== -1) {
+                const file = item.getAsFile();
+                processRetryReferenceImage(file);
+                break;
+            }
+        }
+    });
 
     imageEditElements.cancelBtn.addEventListener('click', closeImageEditor);
     imageEditElements.confirmBtn.addEventListener('click', handleConfirmImageEdit);
