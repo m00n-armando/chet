@@ -2889,6 +2889,7 @@ You are a world class visual scene director and photographer. Your task is to ge
 
 **YOUR TASK:**
 In 1 concise paragraph, describe the entire visual scene. Your description MUST include:
+2.  **Pose and Body Condition:** Describe the character's pose (e.g., "standing, gently stroking wet hair after a shower", "lying down, body glistening with sweat") and overall body condition (e.g., "wet body", "sweaty body").
 1.  **Character's State:** Their specific facial expression (e.g., "sleepy, almost shy grin", "tired but warm smile", "playful smirk"), mood, micro-actions/pose, and immediate body condition (e.g., damp hair, light sweat, bedhead).
 2.  **Camera & Composition:** The camera angle (e.g., "intimate medium close-up shot, framed slightly from above eye-level", "eye-level close-up"), shot type (e.g., "close-up on face", "medium shot from the waist up"), and framing. Be highly creative and cinematic, avoiding generic descriptions.
 
@@ -2902,7 +2903,11 @@ In 1 concise paragraph, describe the entire visual scene. Your description MUST 
   **Description:** *A close-up shot from a high angle, as if looking down at her. Her eyelids are heavy and lips parted in a drowsy half-smile. She tugs the duvet up to her chin, and the soft morning light from the window washes over her face.*
 - **Context:** Character is confident after a workout, professional style.
   **Description:** *A medium shot from a slightly low angle to convey power. She steadies herself against the bathroom sink, cheeks flushed and a few stray droplets on her collarbone, giving a small triumphant grin directly into the camera.*
+- **Context:** Character just finished showering, selfie style.
+  **Description:** *An intimate medium close-up shot. She stands in front of a steamy mirror, gently stroking her wet hair, droplets of water still clinging to her skin, a soft, contented smile on her lips.*
 
+- **Context:** Character is relaxing after intense activity, viewer style.
+  **Description:** *A medium shot from eye-level. She is lying on a plush sofa, her body glistening with a light sheen of sweat, a relaxed yet alluring expression as she gazes directly at the viewer.*
 **Dynamic Scene Description:**`;
 
     try {
@@ -3043,6 +3048,13 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     const { basicInfo, physicalStyle } = character.characterProfile;
     const now = Date.now();
 
+    // --- Pronoun Definitions ---
+    const isMale = basicInfo.gender === 'male' || basicInfo.gender === 'transgender male';
+    const pronounSubject = isMale ? 'he' : 'she';
+    const pronounObject = isMale ? 'him' : 'her';
+    const pronounPossessive = isMale ? 'his' : 'her';
+    const genderNoun = isMale ? 'man' : 'woman';
+
     // --- Part 1: Parse Perspective from userPrompt ---
     let perspective: 'selfie' | 'viewer' = 'selfie';
     let cleanedUserPrompt = userPrompt;
@@ -3083,7 +3095,7 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     if (basicInfo.race.toLowerCase() !== 'human') {
         const physicals = racePhysicals[basicInfo.race.toLowerCase()];
         if (physicals) {
-            raceVisualDescription = ` As a ${basicInfo.race}, ${basicInfo.gender === 'male' ? 'he' : 'she'} has distinct features: ${physicals.skin} ${physicals.eyes} ${physicals.features}`;
+            raceVisualDescription = ` As a ${basicInfo.race}, ${pronounSubject} has distinct features: ${physicals.skin} ${physicals.eyes} ${physicals.features}`;
         }
     }
 
@@ -3128,15 +3140,14 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         consistencyInstruction = `The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit should be ${outfitDescription}. CRITICAL INSTRUCTION: Pose, expression, hairstyle, makeup, and immediate body condition MUST be dynamic and match the scene's context, ensuring visual variety in each generation.`;
     }
 
-    const genderNoun = basicInfo.gender === 'male' ? 'man' : 'woman';
     const lightingNote = plan.lighting ? `, lighting: ${plan.lighting}` : '';
     const isBedroomNight = /bedroom|bed/i.test(sessionLocation) && /night|evening/i.test(timeDescription);
     const bedtimeLook = isBedroomNight ? ` No makeup (bare skin, no visible eyeliner or eyeshadow), natural lips; hair loose and slightly messy (bedhead).` : '';
     
     const promptText = (
-        `An ultra-realistic, high-detail, photographic quality image of ${basicInfo.name}, a ${age}-year-old ${raceOrDescent} ${genderNoun}. ` +
-        `Her hair is ${currentSessionHairstyle}. ` + // Use the potentially updated hairstyle
-        `She is wearing: ${outfitDescription}. ` +
+        `An ultra-realistic, high-detail, photographic quality image of a ${age}-year-old ${raceOrDescent} ${genderNoun}. ` +
+        `${pronounPossessive} hair is ${currentSessionHairstyle}. ` + // Use the potentially updated hairstyle
+        `${pronounSubject} is wearing: ${outfitDescription}. ` +
         `${bedtimeLook} ` +
         `${sceneDescription}. ` + // The new dynamic scene description replaces the old static parts.
         `The scene is a ${sessionLocation} during the ${timeDescription}${lightingNote}. ` +
