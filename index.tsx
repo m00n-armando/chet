@@ -2854,13 +2854,26 @@ Your description MUST NOT repeat those details and MUST be consistent with the n
     }
 }
 
-async function generateOutfitDescription(character: Character, location: string, sceneDescription: string): Promise<string> {
+async function generateOutfitDescription(
+    character: Character, 
+    location: string, 
+    sceneDescription: string,
+    previousOutfit?: string // New parameter to provide context of the last outfit
+): Promise<string> {
     if (!ai) { throw new Error("AI not initialized"); }
     // Select a random clothing style from the array for general style fallback
     const selectedGeneralClothingStyle = getRandomElement(character.characterProfile.physicalStyle.clothingStyle);
     const lastMessage = character.chatHistory.filter(m => m.sender === 'ai' && m.type === 'text').pop()?.content || '';
     const { timeDescription } = getContextualTime(new Date().toISOString(), character.timezone);
     let translatedGeneralStyle: string = selectedGeneralClothingStyle; // Declare here
+
+    const previousOutfitContext = previousOutfit 
+        ? `- **Previous Outfit:** ${previousOutfit}`
+        : '';
+
+    const instructionForAI = previousOutfit
+        ? `2.  Analyze the **Previous Outfit**. If the new context is a direct continuation (e.g., same day, similar activity), modify the previous outfit slightly (e.g., add a jacket, take off a sweater). If the context has changed significantly (e.g., morning to night, home to a party), generate a new, appropriate outfit.`
+        : `2.  Based on the context, describe a fitting outfit. Be specific and visual.`;
 
     const prompt = `You are a world class fashion stylist and scene describer for an AI character. Your task is to describe a contextually appropriate outfit. The description must be concise and suitable for an image generation prompt.
  
@@ -2870,10 +2883,11 @@ async function generateOutfitDescription(character: Character, location: string,
 - **Time of Day:** ${timeDescription}
 - **Action/Scene:** ${sceneDescription}
 - **Character's Last Words:** "${lastMessage}"
+${previousOutfitContext}
 
 **Instructions:**
 1.  Analyze the context. Is the character waking up, at work, going out, relaxing at home?
-2.  Based on the context, describe a fitting outfit. Be specific and visual.
+${instructionForAI}
 3.  Do NOT mention the character's general style in the output.
 4.  The output must be a short phrase, NOT a full sentence.
 5.  Ensure the outfit is modern and contemporary, using current fashion trends and real-world clothing items.
@@ -3057,8 +3071,9 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         outfitDescription = character.sessionContext.outfit;
         console.log(`Reusing session outfit: ${outfitDescription}`);
     } else {
-        outfitDescription = await generateOutfitDescription(character, sessionLocation, sceneDescription);
-        console.log(`Generated new session outfit: ${outfitDescription}`);
+        const previousOutfit = character.sessionContext?.outfit;
+        outfitDescription = await generateOutfitDescription(character, sessionLocation, sceneDescription, previousOutfit);
+        console.log(`Generated new session outfit based on previous context: ${outfitDescription}`);
         
         // Jika sessionContext belum ada, buat dulu objek kosongnya
         if (!character.sessionContext) {
