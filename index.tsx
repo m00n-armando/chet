@@ -1283,49 +1283,16 @@ async function startChat(characterId: string) {
         const wallpaper = screens.chat;
         wallpaper.style.backgroundImage = `url(${character.avatar})`;
         
-        // --- LOGIKA SESI ABADI BARU ---
-        // Jika karakter sudah punya ingatan sesi, pakai itu.
+        // Simplified session start, reference image is handled by the generation function.
         if (character.sessionContext) {
             console.log("Loaded existing session context from character's memory.");
             activeCharacterSessionContext = character.sessionContext;
         } else {
-            // Jika belum punya (karakter baru atau sesi pertama kali), buatkan.
             console.log("No session context found, initializing new one.");
-
-            // Cari gambar AI terakhir di history untuk referensi awal, JIKA ADA.
-            const lastAiImageMessage = character.chatHistory
-                .slice().reverse()
-                .find(msg => msg.sender === 'ai' && msg.type === 'image' && msg.imageDataUrl);
-            
-            let initialReferenceImage;
-            if (lastAiImageMessage) {
-                const mediaId = character.media.find(m => m.data === lastAiImageMessage.imageDataUrl)?.id;
-                if (mediaId) {
-                    initialReferenceImage = {
-                        id: mediaId,
-                        mimeType: lastAiImageMessage.imageDataUrl!.match(/data:(.*);base64,/)?.[1] || 'image/png',
-                        dataUrl: lastAiImageMessage.imageDataUrl!
-                    };
-                    console.log(`Initialized session with last AI image from history as reference: ${mediaId}`);
-                }
-            }
-            
-            // Jika TIDAK ADA gambar AI di history, baru gunakan avatar.
-            if (!initialReferenceImage) {
-                initialReferenceImage = {
-                    id: "0", // ID khusus untuk avatar
-                    mimeType: character.avatar.match(/data:(.*);base64,/)?.[1] || 'image/png',
-                    dataUrl: character.avatar
-                };
-                console.log("Initialized session with avatar as reference.");
-            }
-
             activeCharacterSessionContext = {
                 hairstyle: getRandomElement(character.characterProfile.physicalStyle.hairStyle),
                 timestamp: Date.now(),
-                lastReferenceImage: initialReferenceImage,
             };
-            // Simpan sesi yang baru dibuat ini ke "ingatan" karakter
             character.sessionContext = activeCharacterSessionContext;
         }
 
@@ -2344,7 +2311,13 @@ Respond ONLY with a JSON object conforming to the schema.`;
             }
         });
 
-        const result = JSON.parse(response.text.trim()) as { change: number; reason: string };
+        const responseText = response.text;
+        if (!responseText) {
+            console.error("Failed to get a valid text response for intimacy update.");
+            return; // Exit the function if the response is invalid
+        }
+
+        const result = JSON.parse(responseText.trim()) as { change: number; reason: string };
         const change = result.change || 0;
         
         // Round to 1 decimal place for cleaner display
@@ -2680,19 +2653,25 @@ async function generateImage(
         return response.generatedImages[0].image.imageBytes;
 
     } else { // 'gemini-2.5-flash-image-preview' (Nano Banana)
-        // Nano Banana MUST have a reference image for our consistency workflow
-        const finalParts: Part[] = [...parts]; // Start with the incoming text parts
-        if (referenceImage) {
-            console.log('Using reference image for generation.');
+        // The reference image should already be included in the `parts` array by `constructMediaPrompt`.
+        // This function will just use the parts as provided.
+        const finalParts: Part[] = parts;
+        const hasImagePart = parts.some(p => p.inlineData);
+
+        if (!hasImagePart) {
+             // For txt2img avatar generation, no reference is needed. For other cases, this is a warning.
+            console.log("No reference image was included in the parts for Nano Banana generation.");
+        }
+        
+        if (referenceImage && !hasImagePart) {
+            // Fallback for manual generation where reference is passed separately
+            console.log('Using reference image passed as argument.');
             finalParts.push({
                 inlineData: {
                     data: referenceImage.base64Data,
                     mimeType: referenceImage.mimeType
                 }
             });
-        } else {
-            // For txt2img avatar generation, no reference is needed
-            console.log("No reference image provided for Nano Banana (expected for txt2img).");
         }
         console.log('Final parts for gemini-2.5-flash-image-preview:', JSON.stringify(finalParts, null, 2));
         const response = await ai.models.generateContent({
@@ -3117,7 +3096,7 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         photographyStyleInstruction = `The image exhibits exceptional professional photography quality with tack-sharp focus on the eyes and a creamy bokeh background. Emphasize realistic details like visible pores and soft shadows.`;
     }
 
-    const consistencyInstruction = `The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit should be ${outfitDescription}, maintained from the reference image unless the new context requires a change. Pose, expression, hairstyle, makeup, and immediate body condition (e.g., wet, sweaty, sleepy) should be dynamic and match the scene's context.`;
+    const consistencyInstruction = `The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit should be ${outfitDescription}, maintained from the reference image unless the new context requires a change. Pose, expression, hairstyle, makeup, and immediate body condition should be dynamic and match the scene's context.`;
 
     const promptText = (
         `An ultra-realistic, high-detail, photographic quality image of ${basicInfo.name}, a ${age}-year-old ${raceOrDescent} ${genderNoun}${raceVisualDescription}. ` +
@@ -3141,22 +3120,45 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     // Coba dapatkan referensi dari session context terlebih dahulu
     if (activeCharacterSessionContext?.lastReferenceImage) {
         const ref = activeCharacterSessionContext.lastReferenceImage;
+        // Cek apakah ID "0" (avatar) atau ada di galeri
         if (ref.id === "0") {
-            // Jika ID "0", sumbernya pasti avatar.
             finalReferenceImage = { dataUrl: character.avatar, id: ref.id };
         } else {
-            // Cari di media gallery.
             const media = character.media.find(m => m.id === ref.id);
             if (media && typeof media.data === 'string') {
                 finalReferenceImage = { dataUrl: media.data, id: ref.id };
             }
         }
     }
-    
-    // Jika tidak ada referensi dari session, fallback ke avatar
+
+    // Jika tidak ada referensi dari session, atau referensi session tidak valid,
+    // cari gambar terbaru di galeri sebagai fallback utama.
     if (!finalReferenceImage) {
-        console.warn("No valid session reference, falling back to avatar.");
+        const latestMediaImage = character.media
+            .filter(m => m.type === 'image' && typeof m.data === 'string' && !isNaN(parseInt(m.id, 10)))
+            .sort((a, b) => parseInt(b.id, 10) - parseInt(a.id, 10))[0];
+        
+        if (latestMediaImage) {
+            console.log(`Found latest image in gallery (ID: ${latestMediaImage.id}) to use as reference.`);
+            finalReferenceImage = { dataUrl: latestMediaImage.data as string, id: latestMediaImage.id };
+        }
+    }
+    
+    // Jika masih tidak ada referensi, baru fallback ke avatar.
+    if (!finalReferenceImage) {
+        console.warn("No valid session or gallery reference, falling back to avatar.");
         finalReferenceImage = { dataUrl: character.avatar, id: "0" };
+    }
+
+    // Simpan referensi yang akhirnya digunakan ke session context untuk request berikutnya.
+    if (finalReferenceImage && activeCharacterSessionContext) {
+        const mimeType = finalReferenceImage.dataUrl.match(/data:(.*);base64,/)?.[1] || 'image/png';
+        activeCharacterSessionContext.lastReferenceImage = {
+            id: finalReferenceImage.id,
+            mimeType: mimeType,
+            dataUrl: finalReferenceImage.dataUrl
+        };
+        character.sessionContext = activeCharacterSessionContext;
     }
 
     // Ekstrak MIME type dari dataUrl yang sudah pasti.
@@ -3175,7 +3177,6 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
             console.log(`Successfully added reference image (ID: ${finalReferenceImage.id}) with MIME type: ${foundMimeType}`);
         } else {
             console.error(`Skipping reference image (ID: ${finalReferenceImage.id}) due to invalid MIME type: ${foundMimeType}`);
-            // Kita tidak mengirim referensi sama sekali jika tidak valid, mencegah error 400.
         }
     }
 
@@ -3349,20 +3350,7 @@ async function handleGenerateImageRequest(
         if (isAiInitiated) {
             // All AI-initiated in-chat images MUST use Nano Banana with a reference for consistency.
             modelToUse = 'gemini-2.5-flash-image-preview';
-
-            if (activeCharacterSessionContext?.lastReferenceImage) {
-                console.log("Chaining from last generated image:", activeCharacterSessionContext.lastReferenceImage.id);
-                finalReferenceImage = {
-                    base64Data: activeCharacterSessionContext.lastReferenceImage.dataUrl.split(',')[1],
-                    mimeType: activeCharacterSessionContext.lastReferenceImage.mimeType
-                };
-            } else {
-                console.log("No previous image in session, using avatar as reference.");
-                finalReferenceImage = {
-                    base64Data: character.avatar.split(',')[1],
-                    mimeType: character.avatar.match(/data:(.*);base64,/)?.[1] || 'image/png'
-                };
-            }
+            // The logic to find the reference image is now consolidated within constructMediaPrompt.
         } else {
             // Manual generation: use the reference image provided by the user, if any.
             finalReferenceImage = manualImageReference ? {
@@ -3372,23 +3360,32 @@ async function handleGenerateImageRequest(
         }
 
         // --- Determine the final prompt ---
+        let mediaPromptParts: Part[];
         if (promptToUse) {
-            finalEnglishPrompt = [{ text: promptToUse }];
+            // For manual generation, just use the provided prompt.
+            // The reference image is handled separately by `manualImageReference`.
+            mediaPromptParts = [{ text: promptToUse }];
+            if (finalReferenceImage) {
+                 mediaPromptParts.push({
+                    inlineData: {
+                        data: finalReferenceImage.base64Data,
+                        mimeType: finalReferenceImage.mimeType
+                    }
+                });
+            }
         } else {
-            // ALUR OTOMATIS BARU TANPA KONFIRMASI
+            // For AI-initiated generation, construct the full prompt with context.
             statusEl.textContent = 'Directing scene...';
-            
             const sceneDescription = await generateSceneDescription(character, originalPrompt, 'A neutral, happy mood.');
-
             statusEl.textContent = 'Constructing prompt...';
-            finalEnglishPrompt = await constructMediaPrompt(character, sceneDescription);
+            mediaPromptParts = await constructMediaPrompt(character, sceneDescription);
         }
 
         // --- Generate Image ---
         if (modelToUse) {
             statusEl.textContent = `Generating with ${modelToUse}...`;
-            const mediaPromptParts = await constructMediaPrompt(character, originalPrompt);
-            imageBase64 = await generateImageWithFallback(mediaPromptParts, modelToUse, safetyLevel || 'flexible', finalReferenceImage);
+            // The reference image is now part of `mediaPromptParts`, so `finalReferenceImage` is not needed here.
+            imageBase64 = await generateImageWithFallback(mediaPromptParts, modelToUse, safetyLevel || 'flexible');
             success = true;
         } else {
             // This case should ideally not be hit with the new logic, but serves as a failsafe.
