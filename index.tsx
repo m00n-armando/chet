@@ -111,10 +111,15 @@ interface Message {
 }
 
 interface Media {
-  id: string;
-  type: 'image' | 'video';
-  data: string | Blob; // base64 for image, Blob for video
-  prompt: string;
+   id: string;
+   type: 'image' | 'video';
+   data: string | Blob; // base64 for image, Blob for video
+   prompt: string;
+   referenceImage?: {
+       base64Data: string;
+       mimeType: string;
+       dataUrl: string;
+   };
 }
 
 interface CharacterCreationPreview {
@@ -1182,6 +1187,15 @@ async function startChat(characterId: string) {
     }
     console.log("Character found:", character);
 
+    // Reset image references when switching characters
+    manualImageReference = null;
+    editImageReference = null;
+    tempRetryReferenceImage = null;
+    // Reset last reference image in session context to prevent sticking across characters
+    if (activeCharacterSessionContext) {
+        activeCharacterSessionContext.lastReferenceImage = null;
+    }
+
     // Timezone migration for older characters
     if (!character.timezone) {
         showLoading(`Setting up timezone for ${character.characterProfile.basicInfo.cityOfResidence}...`);
@@ -1918,8 +1932,18 @@ function renderMediaGallery() {
             `;
         }
         
+        let referenceHTML = '';
+        if (media.type === 'image' && media.referenceImage) {
+            referenceHTML = `
+                <div class="media-reference">
+                    <img src="${media.referenceImage.dataUrl}" alt="Reference image" style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; margin-top: 4px;">
+                </div>
+            `;
+        }
+
         item.innerHTML = `
             ${contentHTML}
+            ${referenceHTML}
             <div class="media-item-controls">
                 <button class="media-control-btn delete-media-btn" aria-label="Delete Media">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"></path></svg>
@@ -2649,18 +2673,21 @@ async function handleClearChat() {
 
     const character = characters.find(c => c.id === activeCharacterId);
     if (!character) return;
-    
+
     const isConfirmed = window.confirm(`Are you sure you want to clear this chat? All messages and media will be permanently deleted.`);
-    
+
     if (isConfirmed) {
         showLoading(`Clearing chat...`);
         try {
             character.chatHistory = [];
             character.media = [];
+            // Reset intimacy level to initial value based on role
+            character.intimacyLevel = ROLE_TO_INTIMACY_MAP[character.characterProfile.basicInfo.roles.toLowerCase()] || 10;
             await saveAppState({ userProfile, characters });
             renderChatHistory(); // Will clear the UI
             renderMediaGallery(); // Will clear the UI
             await startChat(activeCharacterId); // Re-initializes the chat session
+            renderChatHeader(character); // Update UI with reset intimacy level
         } catch (error) {
             console.error("Failed to clear chat:", error);
             alert("An error occurred while trying to clear the chat.");
@@ -3067,6 +3094,7 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     // --- Part 2: Extract Core Details ---
     const age = basicInfo.age;
     const raceOrDescent = await translateTextToEnglish(basicInfo.ethnicity);
+    const firstName = basicInfo.name.split(' ')[0];
 
     // --- Part 3: Session Context (Location, Hairstyle & Outfit) ---
     const lastMessageContent = character.chatHistory.filter(m => m.sender === 'ai' && m.type !== 'image').pop()?.content || 'A neutral, happy mood.';
@@ -3144,8 +3172,8 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     const isBedroomNight = /bedroom|bed/i.test(sessionLocation) && /night|evening/i.test(timeDescription);
     const bedtimeLook = isBedroomNight ? ` No makeup (bare skin, no visible eyeliner or eyeshadow), natural lips; hair loose and slightly messy (bedhead).` : '';
     
-    const promptText = (
-        `An ultra-realistic, high-detail, photographic quality image of a ${age}-year-old ${raceOrDescent} ${genderNoun}. ` +
+    let promptText = (
+        `An ultra-realistic, high-detail, photographic quality image of ${firstName}. ` +
         `${pronounPossessive} hair is ${currentSessionHairstyle}. ` + // Use the potentially updated hairstyle
         `${pronounSubject} is wearing: ${outfitDescription}. ` +
         `${bedtimeLook} ` +
@@ -3156,6 +3184,18 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         `9:16 portrait orientation. ` +
         `--style raw --no 3d, cgi, animation, illustration, anime, cartoon, digital art.`
     ).trim().replace(/\s\s+/g, ' ');
+
+    // Simplify prompt if too long to avoid generation failures
+    if (promptText.length > 500) {
+        console.warn(`Prompt too long (${promptText.length} chars), simplifying...`);
+        promptText = (
+            `Ultra-realistic photo of ${firstName} in ${sessionLocation}. ` +
+            `Hair: ${currentSessionHairstyle}. Outfit: ${outfitDescription}. ` +
+            `${sceneDescription}. 9:16 portrait, photographic quality.`
+        ).trim();
+    }
+
+    console.log(`Final prompt for image generation: ${promptText}`); // Debug logging
 
     const parts: Part[] = referenceImages.map(refImg => ({
         inlineData: {
@@ -4471,6 +4511,15 @@ async function handlePhotoUpload(e: Event) {
 
         character.chatHistory.push(tempMessage); // Push the updated message
         await saveAppState({ userProfile, characters });
+
+        // Set the uploaded image as reference for potential AI image generation
+        if (activeCharacterSessionContext) {
+            activeCharacterSessionContext.lastReferenceImage = {
+                id: 'user-photo-' + Date.now(),
+                mimeType: file.type,
+                dataUrl: base64Image
+            };
+        }
 
         // Remove the loading class and update the bubble content
         loadingBubble.classList.remove('loading-image');
