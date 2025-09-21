@@ -748,6 +748,14 @@ function getRandomElement<T>(arr: T[]): T {
     return arr[randomIndex];
 }
 
+// Helper function to create a clean session context for a character
+function createCleanSessionContext(character: Character): SessionContext {
+    return {
+        hairstyle: getRandomElement(character.characterProfile.physicalStyle.hairStyle),
+        timestamp: Date.now(),
+    };
+}
+
 function updateRoleOptions(genderSelect: HTMLSelectElement, roleSelect: HTMLSelectElement) {
     const selectedGender = genderSelect.value;
     const roleOptions = roleSelect.querySelectorAll('option');
@@ -783,7 +791,11 @@ function showScreen(screenId: keyof typeof screens) {
   }
 
   if (screenId !== 'chat') {
-    activeCharacterSessionContext = null; // Reset context when leaving chat screen
+    // Reset all image references and session context when leaving chat screen
+    activeCharacterSessionContext = null;
+    manualImageReference = null;
+    editImageReference = null;
+    tempRetryReferenceImage = null;
     stopAllOtherAudio();
     if (screenId === 'home') {
       activeChat = null;
@@ -1081,6 +1093,112 @@ English Translation:`,
     }
 }
 
+// Helper function to detect whether an image should be a selfie or viewer perspective based on context
+function detectImagePerspective(character: Character, userPrompt: string, lastMessageContent: string): 'selfie' | 'viewer' {
+    try {
+        // Combine context for analysis
+        const fullContext = `${lastMessageContent} ${userPrompt}`.toLowerCase();
+        
+        // Keywords that strongly suggest a selfie context
+        const selfieKeywords = [
+            // Actions related to taking photos with phone
+            'camera', 'foto', 'photo', 'picture', 'pap', 'selfie', 'hp', 'handphone', 'smartphone', 'kamera',
+            'ambil foto', 'memfoto', 'memotret', 'memencet tombol', 'mengangkat hp', 'hold my phone',
+            // Personal/intimate actions
+            'mirror', 'cermin', 'bathroom', 'kamar mandi', 'bedroom', 'kamar tidur', 'tidur', 'bangun',
+            'shower', 'mandi', 'getting ready', 'makeup', 'dandan', 'lipstick', 'lipstik',
+            // First-person perspective
+            'aku', 'i', 'me', 'my', 'diriku', 'sendiri'
+        ];
+        
+        // Keywords that suggest viewer/portrait context (face-to-face interaction)
+        const viewerKeywords = [
+            // Meeting/interaction terms
+            'meet', 'bertemu', 'see', 'lihat', 'looking at', 'melihat', 'face to face', 'tatap muka',
+            'together', 'bersama', 'with you', 'bersamamu', 'in front of', 'di depan',
+            // Social settings
+            'cafe', 'restoran', 'restaurant', 'coffee shop', 'kopi', 'makan', 'dinner', 'lunch',
+            // Professional/formal settings
+            'office', 'kantor', 'work', 'kerja', 'meeting', 'presentasi', 'interview',
+            // Social events
+            'party', 'pameran', 'exhibition', 'event', 'acara'
+        ];
+        
+        // Count matches
+        let selfieScore = 0;
+        let viewerScore = 0;
+        
+        for (const keyword of selfieKeywords) {
+            if (fullContext.includes(keyword)) {
+                selfieScore++;
+            }
+        }
+        
+        for (const keyword of viewerKeywords) {
+            if (fullContext.includes(keyword)) {
+                viewerScore++;
+            }
+        }
+        
+        // Special cases that strongly indicate selfie
+        const strongSelfieIndicators = [
+            'mengangkat hp', 'memencet tombol', 'ambil foto', 'selfie time', 
+            'hold my phone', 'take a selfie', 'camera phone', 'smartphone'
+        ];
+        
+        for (const indicator of strongSelfieIndicators) {
+            if (fullContext.includes(indicator)) {
+                selfieScore += 3; // Strong boost
+            }
+        }
+        
+        // Special cases that strongly indicate viewer
+        const strongViewerIndicators = [
+            'face to face', 'tatap muka', 'looking at you', 'melihatmu', 
+            'in front of you', 'di depanmu'
+        ];
+        
+        for (const indicator of strongViewerIndicators) {
+            if (fullContext.includes(indicator)) {
+                viewerScore += 3; // Strong boost
+            }
+        }
+        
+        // Default to selfie for personal/individual moments, viewer for social interactions
+        console.log(`Perspective detection - Selfie score: ${selfieScore}, Viewer score: ${viewerScore}`);
+        
+        // If selfie score is significantly higher, return selfie
+        if (selfieScore > viewerScore + 1) {
+            console.log("Auto-detected perspective: selfie");
+            return 'selfie';
+        }
+        
+        // If viewer score is significantly higher, return viewer
+        if (viewerScore > selfieScore + 1) {
+            console.log("Auto-detected perspective: viewer");
+            return 'viewer';
+        }
+        
+        // Default fallback based on intimacy level and context
+        // Higher intimacy characters are more likely to take selfies in personal moments
+        // Lower intimacy characters are more likely to be in formal/portrait settings
+        if (character.intimacyLevel > 40) {
+            // For closer relationships, default to selfie for personal moments
+            console.log("Auto-detected perspective: selfie (intimacy-based default)");
+            return 'selfie';
+        } else {
+            // For formal relationships, default to viewer
+            console.log("Auto-detected perspective: viewer (formality-based default)");
+            return 'viewer';
+        }
+    } catch (error) {
+        console.error("Error in detectImagePerspective:", error);
+        // Safe fallback
+        console.log("Auto-detected perspective: selfie (error fallback)");
+        return 'selfie';
+    }
+}
+
 function parseMarkdown(text: string): string {
     // Escape basic HTML characters to prevent XSS, but keep track of them
     // to avoid escaping markdown characters.
@@ -1191,10 +1309,9 @@ async function startChat(characterId: string) {
     manualImageReference = null;
     editImageReference = null;
     tempRetryReferenceImage = null;
-    // Reset last reference image in session context to prevent sticking across characters
-    if (activeCharacterSessionContext) {
-        activeCharacterSessionContext.lastReferenceImage = null;
-    }
+    
+    // Completely reset the active character session context to prevent any cross-character contamination
+    activeCharacterSessionContext = null;
 
     // Timezone migration for older characters
     if (!character.timezone) {
@@ -1357,12 +1474,17 @@ async function startChat(characterId: string) {
  **MEDIA GENERATION:**
  - You have the ability to generate and send images to the user. This is a key part of the immersive experience.
  - **When to send an image:**
-   - **When the user asks for one:** If the user asks for a "liat", "lihat", "ngebayangin", "pap", "photo", "picture", or similar, you MUST generate an image in your response.
+   - **When the user asks for one:** If the user asks for a "liat", "lihat", "ngebayangin", "pap", "photo", "picture", or similar, you MUST generate an image in your response with depends on yout situation with the user, meet or in chat.
    - **Spontaneously:** You should proactively send images at narratively appropriate moments. For example, when you are describing what you are doing, what you are wearing, or your emotional state. This makes the interaction more visual and engaging.
  - To send media, end your message with a command on a new line. Only use one per message.
  - Image: [GENERATE_IMAGE: <perspective: selfie|viewer>, <description>]
-   - Use 'selfie' perspective if you are narratively "far" from the user (e.g., sending a photo from your location).
-   - Use 'viewer' perspective if you are narratively "meeting directly" with the user (e.g., the user is looking at you).
+   - Use 'selfie' perspective when you are TAKING A PHOTO YOURSELF (e.g., holding your phone to take a selfie, in front of a mirror, getting ready, personal moments). The photo shows you from your own perspective.
+   - Use 'viewer' perspective when you are POSING FOR A PHOTO that someone else is taking of you (e.g., face-to-face meeting, formal portrait, being looked at directly). The photo shows you from the viewer's perspective.
+   - Choose perspective based on the narrative context:
+     * If you're alone taking a photo of yourself → selfie
+     * If you're with someone who is looking at you/photographing you → viewer
+     * If you're describing personal/private moments → selfie
+     * If you're in social/formal settings → viewer
    - The description should be short and dynamic, focusing on your immediate expression, body state, and action/pose.
    - **Image Consistency Rules:**
      - Your core physical details (face, body type, skin tone, eye color) MUST remain consistent with your avatar/last generated image.
@@ -1386,7 +1508,7 @@ async function startChat(characterId: string) {
           model: 'gemini-2.5-flash',
           history: character.chatHistory
               .filter(msg => msg.type !== 'image')
-              .slice(-20)
+              .slice(-50)
               .map(msg => ({
                   role: msg.sender === 'user' ? 'user' : 'model',
                   parts: [{ text: msg.content }],
@@ -1411,16 +1533,29 @@ async function startChat(characterId: string) {
         const wallpaper = screens.chat;
         wallpaper.style.backgroundImage = `url(${character.avatar})`;
         
-        // Simplified session start, reference image is handled by the generation function.
+        // Initialize a completely fresh session context for the new character
+        // This ensures no references from previous characters are carried over
+        activeCharacterSessionContext = createCleanSessionContext(character);
+        
+        // If the character already has session context data, preserve it but ensure clean references
         if (character.sessionContext) {
             console.log("Loaded existing session context from character's memory.");
-            activeCharacterSessionContext = character.sessionContext;
+            if (character.sessionContext.hairstyle) {
+                activeCharacterSessionContext.hairstyle = character.sessionContext.hairstyle;
+            }
+            if (character.sessionContext.timestamp) {
+                activeCharacterSessionContext.timestamp = character.sessionContext.timestamp;
+            }
+            if (character.sessionContext.location) {
+                activeCharacterSessionContext.location = character.sessionContext.location;
+            }
+            if (character.sessionContext.timeDescription) {
+                activeCharacterSessionContext.timeDescription = character.sessionContext.timeDescription;
+            }
+            // Explicitly clear the reference image to prevent cross-character contamination
+            activeCharacterSessionContext.lastReferenceImage = null;
         } else {
-            console.log("No session context found, initializing new one.");
-            activeCharacterSessionContext = {
-                hairstyle: getRandomElement(character.characterProfile.physicalStyle.hairStyle),
-                timestamp: Date.now(),
-            };
+            // If no existing session context, save the new one
             character.sessionContext = activeCharacterSessionContext;
         }
 
@@ -2964,8 +3099,8 @@ async function generateSceneDescription(character: Character, userPrompt: string
     if (!ai) { throw new Error("AI not initialized"); }
 
     const photographyStyle = perspective === 'selfie'
-        ? "The style is an intimate, authentic selfie taken with a front-facing smartphone camera; the phone is NOT visible. Emphasize realistic details and natural lighting."
-        : "The style is a professional DSLR photograph with an 85mm f/1.4 lens, creating a cinematic shallow depth of field. Emphasize tack-sharp focus on the eyes and a creamy bokeh background.";
+        ? "The style is an intimate, authentic selfie taken with a front-facing smartphone camera; the phone is NOT visible. Emphasize realistic details and natural lighting. This is a personal, candid moment where the character is taking their own photo."
+        : "The style is a professional DSLR photograph with an 85mm f/1.4 lens, creating a cinematic shallow depth of field. Emphasize tack-sharp focus on the eyes and a creamy bokeh background. This is a posed portrait where someone else is taking the photo of the character.";
 
     const promptForDirector = `
 You are a world class visual scene director and photographer. Your task is to generate a short, dynamic, and cinematic description for an AI image generation prompt. This description must translate the narrative context into a compelling visual scene.
@@ -2981,6 +3116,14 @@ In 1 concise paragraph, describe the entire visual scene. Your description MUST 
 2.  **Pose and Body Condition:** Describe the character's pose (e.g., "standing, gently stroking wet hair after a shower", "lying down, body glistening with sweat") and overall body condition (e.g., "wet body", "sweaty body").
 3.  **Camera & Composition:** The camera angle (e.g., "intimate medium close-up shot, framed slightly from above eye-level", "eye-level close-up"), shot type (e.g., "close-up on face", "medium shot from the waist up"), and framing. Be highly creative and cinematic, avoiding generic descriptions.
 
+**PERSPECTIVE GUIDANCE:**
+- For SELFIE perspective: The character is taking their own photo. Show the scene from the character's point of view. Include personal, intimate details. The character is likely interacting with their phone/camera.
+- For VIEWER perspective: The character is posing for someone else's photo. Show the scene from an observer's point of view. The character is likely looking directly at the camera/viewer.
+
+**PERSPECTIVE GUIDANCE:**
+- For SELFIE perspective: The character is taking their own photo. Show the scene from the character's point of view. Include personal, intimate details. The character is likely interacting with their phone/camera.
+- For VIEWER perspective: The character is posing for someone else's photo. Show the scene from an observer's point of view. The character is likely looking directly at the camera/viewer.
+
 **CRITICAL CONSTRAINTS:**
 - The final image prompt will already contain the character's core appearance (face, ethnicity), their outfit, and location. **DO NOT** describe these elements.
 - Your description must be grounded in the narrative context and desired photography style.
@@ -2988,14 +3131,14 @@ In 1 concise paragraph, describe the entire visual scene. Your description MUST 
 - **IMPORTANT:** Write the description ENTIRELY IN ENGLISH.
 
 **EXAMPLES:**
-- **Context:** Character just woke up, selfie style.
+- **Context:** Character just woke up, taking a selfie.
   **Description:** *A close-up shot from a high angle, as if looking down at her. Her eyelids are heavy and lips parted in a drowsy half-smile. She tugs the duvet up to her chin, and the soft morning light from the window washes over her face.*
-- **Context:** Character is confident after a workout, professional style.
+- **Context:** Character is confident after a workout, posing for a photo.
   **Description:** *A medium shot from a slightly low angle to convey power. She steadies herself against the bathroom sink, cheeks flushed and a few stray droplets on her collarbone, giving a small triumphant grin directly into the camera.*
-- **Context:** Character just finished showering, selfie style.
+- **Context:** Character just finished showering, taking a selfie.
   **Description:** *An intimate medium close-up shot. She stands in front of a steamy mirror, gently stroking her wet hair, droplets of water still clinging to her skin, a soft, contented smile on her lips.*
-- **Context:** Character is relaxing after intense activity, viewer style.
-  **Description:** *A medium shot from eye-level. She is lying on a plush sofa, her body glistening with a light sheen of sweat, a relaxed yet alluring expression as she gazes directly at the viewer.*
+- **Context:** Character is relaxing in a cafe with the user, posing for a photo.
+  **Description:** *A medium shot from eye-level. She is sitting across from you at a cafe table, her body relaxed with a warm smile as she gazes directly at the viewer.*
 **Dynamic Scene Description:**`;
 
     try {
@@ -3159,10 +3302,15 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     // --- Part 1: Parse Perspective from userPrompt ---
     let perspective: 'selfie' | 'viewer' = 'selfie';
     let cleanedUserPrompt = userPrompt;
+    // Get last message content early for perspective detection
+    const lastMessageContent = character.chatHistory.filter(m => m.sender === 'ai' && m.type !== 'image').pop()?.content || 'A neutral, happy mood.';
     const perspectiveMatch = userPrompt.match(/<perspective:\s*(selfie|viewer)>/i);
     if (perspectiveMatch?.[1]) {
         perspective = perspectiveMatch[1].toLowerCase() as 'selfie' | 'viewer';
         cleanedUserPrompt = userPrompt.replace(perspectiveMatch[0], '').trim();
+    } else {
+        // Automatically detect perspective based on context
+        perspective = detectImagePerspective(character, userPrompt, lastMessageContent);
     }
 
     // --- Part 2: Extract Core Details ---
@@ -3171,7 +3319,6 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     const firstName = basicInfo.name.split(' ')[0];
 
     // --- Part 3: Session Context (Location, Hairstyle & Outfit) ---
-    const lastMessageContent = character.chatHistory.filter(m => m.sender === 'ai' && m.type !== 'image').pop()?.content || 'A neutral, happy mood.';
     const sceneDescription = await generateSceneDescription(character, cleanedUserPrompt, lastMessageContent, perspective);
     const plan = await inferContextualLocation(character, sceneDescription, lastMessageContent);
     const sessionLocation = plan.location || basicInfo.cityOfResidence;
