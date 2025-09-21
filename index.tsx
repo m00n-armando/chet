@@ -3079,7 +3079,7 @@ ${instructionForAI}
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
-            config: { temperature: 0.5 },
+            config: { temperature: 0.3 },
         });
         const [translatedOutfit, generalStyleTranslated] = await Promise.all([ // Renamed to avoid conflict
             translateTextToEnglish(response.text.trim()),
@@ -3201,19 +3201,39 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         }
     }
 
-    // --- Part 5: Session Outfit ---
-    // Always re-evaluate the outfit based on the latest context to allow for narrative-driven changes.
-    const outfitDescription = await generateOutfitDescription(character, sessionLocation, sceneDescription, character.sessionContext?.outfit);
-    console.log(`Determined session outfit: ${outfitDescription}`);
+    // --- Part 5: Session Outfit (DEPRECATED LOGIC) ---
+    // The logic for dynamically generating outfit descriptions on every image request 
+    // was leading to visual inconsistency. Outfit consistency is now handled by relying
+    // on the reference images. The sessionContext.outfit is no longer updated or used
+    // in prompt construction to prevent unintended changes.
+    // const outfitDescription = await generateOutfitDescription(character, sessionLocation, sceneDescription, character.sessionContext?.outfit);
+    // console.log(`Determined session outfit: ${outfitDescription}`);
     // Update the session context with the newly determined outfit.
-    if (!character.sessionContext) {
-        character.sessionContext = { hairstyle: currentSessionHairstyle, timestamp: now, location: sessionLocation, timeDescription };
-    }
-    character.sessionContext.outfit = outfitDescription;
+    // if (!character.sessionContext) {
+    //     character.sessionContext = { hairstyle: currentSessionHairstyle, timestamp: now, location: sessionLocation, timeDescription };
+    // }
+    // character.sessionContext.outfit = outfitDescription; // <- This caused inconsistency
+    // Placeholder to satisfy later code that might reference it, but it's not used in prompts.
+    const outfitDescription = "as seen in the reference image";
 
     // --- Part 6: Collect Reference Images ---
     const referenceImages: { dataUrl: string, id: string, mimeType: string }[] = [];
-    const avatarMimeType = character.avatar.match(/data:(.*);base64,/)?.[1] || 'image/png';
+    let avatarMimeType = character.avatar.match(/data:(.*);base64,/)?.[1] || 'image/png'; // Changed to 'let'
+    
+    // --- FIX: Ensure avatar has a valid MIME type ---
+    if (avatarMimeType === 'application/octet-stream') {
+        console.warn("Avatar has invalid MIME type 'application/octet-stream'. Attempting to correct...");
+        const correctedMimeType = guessMimeTypeFromBase64(character.avatar);
+        if (correctedMimeType !== 'application/octet-stream') { // Only update if we got a better guess
+             avatarMimeType = correctedMimeType;
+             console.log(`Corrected avatar MIME type to: ${avatarMimeType}`);
+        } else {
+             console.warn("Could not determine a better MIME type for avatar, keeping 'image/png' as default.");
+             avatarMimeType = 'image/png'; // Ensure a safe default if guessing fails
+        }
+    }
+    // --- END FIX ---
+    
     referenceImages.push({ dataUrl: character.avatar, id: "0", mimeType: avatarMimeType });
     console.log("Added avatar as primary reference.");
 
@@ -3235,54 +3255,117 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
     }
 
     // --- Part 7: Build Final Prompt ---
+    // CRITICAL INSTRUCTION for consistency:
+    // 1. Use reference images for physical identity (face, body, outfit).
+    // 2. Only describe dynamic elements (pose, expression, condition) in the scene description.
+    // 3. Explicitly state that outfit comes from the reference.
     let consistencyInstruction: string;
     if (referenceImages.length > 1) {
-        consistencyInstruction = `CRITICAL INSTRUCTION: Use BOTH reference images provided. The FIRST image is the character's avatar; use it as the absolute ground-truth for the character's face, body, and physical identity. The SECOND image provides the context for the current scene; reuse its outfit, general pose, and lighting. The character's final face MUST match the FIRST image (the avatar), NOT the second.`;
+        consistencyInstruction = `CRITICAL INSTRUCTION: You are provided with TWO reference images. 
+- The FIRST image (ID: ${sceneReferenceImage?.id}) is for SCENE CONTEXT. It shows a previous pose, lighting, or outfit. USE ONLY its pose and lighting as inspiration. 
+- The SECOND image (ID: 0) is the CHARACTER'S AVATAR. This is the ABSOLUTE GROUND-TRUTH for the character's ENTIRE physical appearance, including face, body, hairstyle, outfit, and accessories. 
+FINAL RULE: The character's final outfit, hairstyle, and all physical features in the generated image MUST EXACTLY MATCH the AVATAR (ID: 0). Ignore any different outfit or style shown in the first image.`;
     } else {
-        consistencyInstruction = `The character's face, body type, skin tone, and eye color must be exactly consistent with the reference image. The outfit should be ${outfitDescription}. CRITICAL INSTRUCTION: Pose, expression, hairstyle, makeup, and immediate body condition MUST be dynamic and match the scene's context, ensuring visual variety in each generation.`;
+        consistencyInstruction = `CRITICAL INSTRUCTION: The character's face, body type, skin tone, eye color, hair, AND outfit must be exactly consistent with the reference image. DO NOT generate a new outfit unless the narrative context explicitly demands it (e.g., a scene change from beach to ballroom). Pose, expression, hairstyle state (e.g., messy, styled), makeup state, and immediate body condition (e.g., sweaty, wet) MUST be dynamic and match the scene's context. Ensure the reference image outfit is maintained.`;
     }
 
     const lightingNote = plan.lighting ? `, lighting: ${plan.lighting}` : '';
     const isBedroomNight = /bedroom|bed/i.test(sessionLocation) && /night|evening/i.test(timeDescription);
     const bedtimeLook = isBedroomNight ? ` No makeup (bare skin, no visible eyeliner or eyeshadow), natural lips; hair loose and slightly messy (bedhead).` : '';
     
+    // Construct the base prompt focusing on dynamic elements.
+    // Face, body, and outfit are handled by the reference image and consistency instruction.
     let promptText = (
         `An ultra-realistic, high-detail, photographic quality image of a ${age}-year-old ${genderNoun}. ` +
-        `${pronounPossessive} hair is ${currentSessionHairstyle}. ` + // Use the potentially updated hairstyle
-        `${pronounSubject} is wearing: ${outfitDescription}. ` +
-        `${bedtimeLook} ` +
-        `${sceneDescription}. ` + // The new dynamic scene description replaces the old static parts.
+        `${sceneDescription}. ` + // The dynamic scene description is the core narrative part.
         `The scene is a ${sessionLocation} during the ${timeDescription}${lightingNote}. ` +
-        `${consistencyInstruction} ` +
+        `${bedtimeLook} ` + // Context-specific conditions
+        `${consistencyInstruction} ` + // Enforce identity consistency
         `The visual setting must match this micro-location. ` +
         `1:1 portrait orientation. ` +
         `--style raw --no 3d, cgi, animation, illustration, anime, cartoon, digital art.`
     ).trim().replace(/\s\s+/g, ' ');
 
-    // Simplify prompt if too long to avoid generation failures
-    if (promptText.length > 750) {
+    // Simplify prompt if too long to avoid generation failures, still avoiding explicit outfit description
+    if (promptText.length > 1000) {
         console.warn(`Prompt too long (${promptText.length} chars), simplifying...`);
         promptText = (
             `An ultra-realistic photo of a ${age}-year-old ${genderNoun} in ${sessionLocation}. ` +
-            `Hair: ${currentSessionHairstyle}. Outfit: ${outfitDescription}. ` +
-            `${sceneDescription} ${timeDescription} ${lightingNote}. 1:1 portrait, photographic quality.`
+            `${sceneDescription} ${timeDescription} ${lightingNote}. ` + // Keep dynamic scene
+            `CRITICAL: Maintain the character's appearance (face, body, outfit) from the reference image. ` + // Key instruction
+            `1:1 portrait, photographic quality. --style raw --no 3d, cgi, animation, illustration, anime, cartoon, digital art.`
         ).trim();
     }
 
     console.log(`Final prompt for image generation: ${promptText}`); // Debug logging
 
-    const parts: Part[] = referenceImages.map(refImg => ({
+    // --- Strategy for Reference Image Order ---
+    // When providing TWO reference images (Avatar and Scene Context), the order can influence
+    // how the model prioritizes them. To strongly enforce that the AVATAR is the ground truth
+    // for ALL physical appearance (including outfit), we will place it LAST in the parts array.
+    // This is a common technique to make the final reference more "sticky".
+    const parts: Part[] = [];
+    
+    // First, add the scene context reference image (if it exists and is not the avatar)
+    if (sceneReferenceImage && sceneReferenceImage.id !== "0") {
+        const sceneMimeType = sceneReferenceImage.dataUrl.match(/data:(.*);base64,/)?.[1] || 'image/png';
+        // --- FIX: Ensure scene reference image MIME type is also checked ---
+        if (sceneMimeType === 'application/octet-stream') {
+            console.warn(`Scene reference image (ID: ${sceneReferenceImage.id}) has invalid MIME type 'application/octet-stream'. Attempting to correct...`);
+            const correctedSceneMimeType = guessMimeTypeFromBase64(sceneReferenceImage.dataUrl);
+            // Use corrected MIME type or fallback
+            const finalSceneMimeType = (correctedSceneMimeType !== 'application/octet-stream') ? correctedSceneMimeType : 'image/png';
+            console.log(`Corrected scene reference image MIME type to: ${finalSceneMimeType}`);
+            
+            parts.push({
+                inlineData: {
+                    mimeType: finalSceneMimeType,
+                    data: sceneReferenceImage.dataUrl.split(',')[1],
+                },
+            });
+        } else {
+            parts.push({
+                inlineData: {
+                    mimeType: sceneMimeType,
+                    data: sceneReferenceImage.dataUrl.split(',')[1],
+                },
+            });
+        }
+        // --- END FIX ---
+        console.log(`Added scene reference image (ID: ${sceneReferenceImage.id}) as first part.`);
+    }
+
+    // Then, add the avatar (ground truth). Placing it last makes its influence stronger.
+    // Use the avatarMimeType variable which might have been corrected earlier.
+    // Note: The data URL for the avatar in 'parts' should be the original one from 'character.avatar'
+    // as that's what was validated/corrected for MIME type. The reconstruction for MIME fix
+    // was only for the in-memory variable, not necessarily the one stored in state.
+    parts.push({
         inlineData: {
-            mimeType: refImg.mimeType,
-            data: refImg.dataUrl.split(',')[1],
+            mimeType: avatarMimeType, // This uses the potentially corrected MIME type
+            data: character.avatar.split(',')[1],
         },
-    }));
+    });
+    console.log("Added avatar as the final (ground-truth) reference part.");
+
+    // Finally, add the text prompt
     parts.push({ text: promptText });
 
+    // Still update the last reference image for chaining, but don't rely on session outfit
     if (sceneReferenceImage && activeCharacterSessionContext) {
+        let sessionRefMimeType = sceneReferenceImage.dataUrl.match(/data:(.*);base64,/)?.[1] || 'image/png';
+        // --- FIX: Ensure session reference image MIME type is also valid ---
+        if (sessionRefMimeType === 'application/octet-stream') {
+            console.warn(`Session reference image (ID: ${sceneReferenceImage.id}) has invalid MIME type 'application/octet-stream'. Attempting to correct for session context...`);
+            const correctedSessionRefMimeType = guessMimeTypeFromBase64(sceneReferenceImage.dataUrl);
+            // Use corrected MIME type or fallback
+            sessionRefMimeType = (correctedSessionRefMimeType !== 'application/octet-stream') ? correctedSessionRefMimeType : 'image/png';
+            console.log(`Corrected session reference image MIME type to: ${sessionRefMimeType}`);
+        }
+        // --- END FIX ---
         activeCharacterSessionContext.lastReferenceImage = {
             id: sceneReferenceImage.id,
-            mimeType: sceneReferenceImage.dataUrl.match(/data:(.*);base64,/)?.[1] || 'image/png',
+            mimeType: sessionRefMimeType, // Use the potentially corrected MIME type
             dataUrl: sceneReferenceImage.dataUrl
         };
         character.sessionContext = activeCharacterSessionContext;
