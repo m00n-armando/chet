@@ -2743,6 +2743,21 @@ async function handleDeleteCharacter() {
 }
 
 
+// --- Utility function to guess MIME type from base64 data URL prefix ---
+function guessMimeTypeFromBase64(base64DataOrDataUrl: string): string {
+    if (base64DataOrDataUrl.startsWith('data:')) {
+        // It's a full data URL, extract MIME type
+        const mimeTypeMatch = base64DataOrDataUrl.match(/^data:([^;]+);/);
+        if (mimeTypeMatch && mimeTypeMatch[1]) {
+            return mimeTypeMatch[1];
+        }
+    }
+    // If it's just base64 data or we couldn't extract, default to jpeg
+    // This is a common and safe default for image data.
+    console.warn("Could not determine MIME type from data, defaulting to image/jpeg.");
+    return 'image/jpeg';
+}
+
 // Media Generation
 async function generateImage(
     parts: Part[],
@@ -2754,6 +2769,16 @@ async function generateImage(
     if (!ai) { throw new Error("AI not initialized"); }
     console.log(`Generating image with model: ${model}, safety: ${safetyLevel}`);
     
+    // --- FIX: Ensure referenceImage has a valid MIME type ---
+    if (referenceImage && referenceImage.mimeType === 'application/octet-stream') {
+        console.warn("Reference image has invalid MIME type 'application/octet-stream'. Attempting to correct...");
+        // Try to guess from the data itself if it's a data URL
+        const correctedMimeType = guessMimeTypeFromBase64(referenceImage.base64Data);
+        referenceImage.mimeType = correctedMimeType;
+        console.log(`Corrected reference image MIME type to: ${correctedMimeType}`);
+    }
+    // --- END FIX ---
+
     if (model === 'imagen-4.0-generate-001') {
         const response = await ai.models.generateImages({
             model: 'imagen-4.0-generate-001',
@@ -2771,7 +2796,7 @@ async function generateImage(
     } else { // 'gemini-2.5-flash-image-preview' (Nano Banana)
         // The reference image should already be included in the `parts` array by `constructMediaPrompt`.
         // This function will just use the parts as provided.
-        const finalParts: Part[] = parts;
+        const finalParts: Part[] = [...parts]; // Create a copy to avoid mutating the original
         const hasImagePart = parts.some(p => p.inlineData);
 
         if (!hasImagePart) {
@@ -2779,9 +2804,28 @@ async function generateImage(
             console.log("No reference image was included in the parts for Nano Banana generation.");
         }
         
+        // --- FIX: Ensure any inlineData part in finalParts has a valid MIME type ---
+        finalParts.forEach((part, index) => {
+            if (part.inlineData && part.inlineData.mimeType === 'application/octet-stream') {
+                console.warn(`Part ${index} has invalid MIME type 'application/octet-stream'. Attempting to correct...`);
+                const correctedMimeType = guessMimeTypeFromBase64(part.inlineData.data);
+                part.inlineData.mimeType = correctedMimeType;
+                console.log(`Corrected part ${index} MIME type to: ${correctedMimeType}`);
+            }
+        });
+        // --- END FIX ---
+
         if (referenceImage && !hasImagePart) {
             // Fallback for manual generation where reference is passed separately
             console.log('Using reference image passed as argument.');
+            // --- FIX: Ensure this referenceImage also has a valid MIME type before pushing ---
+            if (referenceImage.mimeType === 'application/octet-stream') {
+                 console.warn("Separately passed reference image has invalid MIME type 'application/octet-stream'. Attempting to correct...");
+                 const correctedMimeType = guessMimeTypeFromBase64(referenceImage.base64Data);
+                 referenceImage.mimeType = correctedMimeType;
+                 console.log(`Corrected separately passed reference image MIME type to: ${correctedMimeType}`);
+            }
+            // --- END FIX ---
             finalParts.push({
                 inlineData: {
                     data: referenceImage.base64Data,
@@ -2933,14 +2977,15 @@ You are a world class visual scene director and photographer. Your task is to ge
 
 **YOUR TASK:**
 In 1 concise paragraph, describe the entire visual scene. Your description MUST include:
-2.  **Pose and Body Condition:** Describe the character's pose (e.g., "standing, gently stroking wet hair after a shower", "lying down, body glistening with sweat") and overall body condition (e.g., "wet body", "sweaty body").
 1.  **Character's State:** Their specific facial expression (e.g., "sleepy, almost shy grin", "tired but warm smile", "playful smirk"), mood, micro-actions/pose, and immediate body condition (e.g., damp hair, light sweat, bedhead).
-2.  **Camera & Composition:** The camera angle (e.g., "intimate medium close-up shot, framed slightly from above eye-level", "eye-level close-up"), shot type (e.g., "close-up on face", "medium shot from the waist up"), and framing. Be highly creative and cinematic, avoiding generic descriptions.
+2.  **Pose and Body Condition:** Describe the character's pose (e.g., "standing, gently stroking wet hair after a shower", "lying down, body glistening with sweat") and overall body condition (e.g., "wet body", "sweaty body").
+3.  **Camera & Composition:** The camera angle (e.g., "intimate medium close-up shot, framed slightly from above eye-level", "eye-level close-up"), shot type (e.g., "close-up on face", "medium shot from the waist up"), and framing. Be highly creative and cinematic, avoiding generic descriptions.
 
 **CRITICAL CONSTRAINTS:**
 - The final image prompt will already contain the character's core appearance (face, ethnicity), their outfit, and location. **DO NOT** describe these elements.
 - Your description must be grounded in the narrative context and desired photography style.
 - Be specific and evocative.
+- **IMPORTANT:** Write the description ENTIRELY IN ENGLISH.
 
 **EXAMPLES:**
 - **Context:** Character just woke up, selfie style.
@@ -2949,7 +2994,6 @@ In 1 concise paragraph, describe the entire visual scene. Your description MUST 
   **Description:** *A medium shot from a slightly low angle to convey power. She steadies herself against the bathroom sink, cheeks flushed and a few stray droplets on her collarbone, giving a small triumphant grin directly into the camera.*
 - **Context:** Character just finished showering, selfie style.
   **Description:** *An intimate medium close-up shot. She stands in front of a steamy mirror, gently stroking her wet hair, droplets of water still clinging to her skin, a soft, contented smile on her lips.*
-
 - **Context:** Character is relaxing after intense activity, viewer style.
   **Description:** *A medium shot from eye-level. She is lying on a plush sofa, her body glistening with a light sheen of sweat, a relaxed yet alluring expression as she gazes directly at the viewer.*
 **Dynamic Scene Description:**`;
@@ -2964,17 +3008,30 @@ In 1 concise paragraph, describe the entire visual scene. Your description MUST 
         // JURUS PERTAHANAN BARU DI SINI!
         const responseText = response?.text; // Gunakan optional chaining
         if (typeof responseText === 'string') {
-            return responseText.trim();
+            let description = responseText.trim();
+            // --- FIX: Ensure the description is in English ---
+            // Translate the AI's output to be extra sure.
+            description = await translateTextToEnglish(description);
+            // --- END FIX ---
+            return description;
         } else {
             console.warn("generateSceneDescription: AI did not return a valid text response. Falling back.");
             // Fallback ke prompt pengguna jika AI gagal
-            return `She is ${userPrompt}.`;
+            // --- FIX: Translate the fallback ---
+            const fallback = `She is ${userPrompt}.`;
+            const translatedFallback = await translateTextToEnglish(fallback);
+            return translatedFallback;
+            // --- END FIX ---
         }
 
     } catch (error) {
         console.error("Failed to generate scene description:", error);
         // Fallback ke prompt pengguna jika terjadi error
-        return `She is ${userPrompt}.`;
+        // --- FIX: Translate the fallback ---
+        const fallback = `She is ${userPrompt}.`;
+        const translatedFallback = await translateTextToEnglish(fallback);
+        return translatedFallback;
+        // --- END FIX ---
     }
 }
 
@@ -3208,7 +3265,7 @@ async function constructMediaPrompt(character: Character, userPrompt: string): P
         promptText = (
             `An ultra-realistic photo of a ${age}-year-old ${genderNoun} in ${sessionLocation}. ` +
             `Hair: ${currentSessionHairstyle}. Outfit: ${outfitDescription}. ` +
-            `${sceneDescription}. 1:1 portrait, photographic quality.`
+            `${sceneDescription} ${timeDescription} ${lightingNote}. 1:1 portrait, photographic quality.`
         ).trim();
     }
 
